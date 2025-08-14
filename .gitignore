@@ -1,0 +1,11 @@
+# clasp 認証ファイル（※ユーザープロファイル直下にできるが保険で）
+.clasprc.json
+**/.clasprc.json
+
+# 無視したい一般ファイル
+node_modules/
+.DS_Store
+Thumbs.db
+
+# ビルド成果物（TypeScript化した場合）
+dist/
