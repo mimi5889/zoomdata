@@ -1,0 +1,7 @@
+.clasprc.json
+**/.clasprc.json
+node_modules/
+.DS_Store
+Thumbs.db
+# TypeScript化した場合のビルド成果物
+/dist/

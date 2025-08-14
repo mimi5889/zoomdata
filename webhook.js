@@ -1,6 +1,13 @@
 function sendSlackNotification(topic,folderUrl,webhooktxt,stockId,companyAdd) {//事後データslack通知
-  const webhookUrl = "https://hooks.slack.com/services/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"; // webhook
-
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const webhookUrl = scriptProperties.getProperty('SLACK_WEBHOOK_URL');
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const flgSheet = sheet.getSheetByName('除外');
+  const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
+  .getValues()
+  .flat()
+  .filter(word => word); // 空でないものだけ
   let message = "";
   Logger.log('stockId' + stockId);
   if(exclusionIds.includes(stockId)){//除外IDと同一の場合
@@ -39,13 +46,15 @@ function sendSlackNotification(topic,folderUrl,webhooktxt,stockId,companyAdd) {/
     contentType: "application/json",
     payload: JSON.stringify(message)
   };
-
+  Logger.log('slack通知前');
   UrlFetchApp.fetch(webhookUrl, options);
+  Logger.log('slack通知後');
 }
 
 
 function sendSlackNotification2(webhooktxt) {//事前登録者データslack通知
-  const webhookUrl = "https://hooks.slack.com/services/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"; // webhook
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const webhookUrl = scriptProperties.getProperty('SLACK_WEBHOOK_URL');
 
   const message = {
     text: '【ウェビナー事前登録者データ】\n'//***************
@@ -64,7 +73,8 @@ function sendSlackNotification2(webhooktxt) {//事前登録者データslack通�
 }
 
 function sendSlackNotification3(topic,eventName,url) {//事前登録者データメールアドレス無しslack通知
-  const webhookUrl = "https://hooks.slack.com/services/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"; // webhook
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const webhookUrl = scriptProperties.getProperty('SLACK_WEBHOOK_URL');
 
   const message = {
       text: '【ウェビナー事前データ作成通知】\n'

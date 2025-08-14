@@ -13,6 +13,16 @@ function registantsTest(){//事前データテスト用
   const row = sh.getActiveCell().getRow();//選択セルの行を取得
   const account = sh.getRange(row,1).getValue();
   const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const folderId = scriptProperties.getProperty('FOLDER_ID');
+  const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
+  const flgSheet = sheet.getSheetByName('除外');
+
+  const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
+  .getValues()
+  .flat()
+  .filter(word => word); // 空でないものだけ
 
   //アカウントからスクリプトプロパティをforで回してインデックス取得する
   for(let n = 1 ; n <= max_acccountIndex ; n++){
@@ -99,6 +109,15 @@ function test(){//事後データテスト用
   const webinarId  = sh.getRange(row,2).getValue();
   const account = sh.getRange(row,1).getValue();
   const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const folderId = scriptProperties.getProperty('FOLDER_ID');
+  const flgSheet = sheet.getSheetByName('除外');
+  const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
+  .getValues()
+  .flat()
+  .filter(word => word); // 空でないものだけ
+  const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
 
   //アカウントからスクリプトプロパティをforで回してインデックス取得する
   for(let n = 1 ; n <= max_acccountIndex ; n++){
@@ -124,5 +143,35 @@ function test(){//事後データテスト用
 
 
 }
+
+function testExistingSlackWebhook() {//webhookのテスト
+  // 直接ベタ書きでもOKですが、プロパティに入れているなら置き換えてください。
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const webhookUrl = scriptProperties.getProperty('SLACK_WEBHOOK_URL');
+
+  const payload = {
+    text: `[TEST] Webhook connectivity check: ${new Date().toISOString()}`
+  };
+
+  const res = UrlFetchApp.fetch(webhookUrl, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,   // ← 失敗でも本文を取得
+    followRedirects: true
+  });
+
+  const status = res.getResponseCode();
+  const body   = res.getContentText();
+  Logger.log({status, body});
+
+  // Slack Incoming Webhookは通常200で "ok" を返します
+  if (status === 200 && body === 'ok') {
+    Logger.log('✅ Webhook は有効です（投稿成功）');
+  } else {
+    throw new Error(`❌ 投稿失敗: status=${status}, body=${body}`);
+  }
+}
+
 
 

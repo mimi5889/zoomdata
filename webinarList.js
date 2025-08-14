@@ -1,17 +1,8 @@
-const sheetId = '1Nn_9zgtsgdNmYpwNwY7MQfd4NI8XBV76l4IiZD11p1A'; // ウェビナーリストスプレッドシートID
-const companyEmailSheetId = '1LlXZJobrCmvTHgz4urDsP3tBYC1PPpEJIXcs2HQm-K8';//企業のメールアドレス一覧
-const folderId = '10ZjJrOgkwvG7oF50gZ7sayau43i7KApZ';//レポート保存先フォルダID
-const max_acccountIndex = 4;
-const ss = SpreadsheetApp.openById(sheetId);
-const sheet = ss.getSheets()[0]; // 一番左のシート
-const flgSheet = ss.getSheetByName('除外');
-const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
-    .getValues()
-    .flat()
-    .filter(word => word); // 空でないものだけ
-
 
 function triggerSet(){//4アカウント分まとめてトリガーで実行　0：00～1：00
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
+
   for(let accountIndex = 1 ; accountIndex <= max_acccountIndex ; accountIndex ++){
     try{
       getWebinarList(accountIndex);
@@ -38,6 +29,9 @@ function getWebinarList(accountIndex){//各IDから情報を取得しスプレ�
 }
 
 function updateUpcomingWebinarsToSheet(token,userId,zoomId) {//各ZoomIDからウェビナーリストの取得
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
 
   const now = new Date();//現在時刻
   // SSシート内容を全取得
@@ -106,7 +100,10 @@ function formatDate(date) {//日付形式の変換
 
 
 function setExclusionFlags() {//処理を除外するレコードにフラグを立てる
-
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const flgSheet = sheet.getSheetByName('除外');
   // 除外ワードの取得（除外シートA列）
   const exclusionWords = flgSheet.getRange('A2:A')
     .getValues()
@@ -158,6 +155,10 @@ function runAllZoomChecks() {//グレーアウト処理
 }
 
 function grayOutMissingWebinars(allExistingIdsMap) {//グレーアウト処理
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+
   const data = sheet.getDataRange().getValues(); // 全データ
   const rows = data.slice(1); // ヘッダー除く
 

@@ -15,6 +15,11 @@ function priorityJob_registants() {
 function getRegistantsData() {//登録者データ取得
 
   const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const folderId = scriptProperties.getProperty('FOLDER_ID');
+  const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');//設定されていない場合は4とする
+
   const today = new Date();
   const formatted_today = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy/MM/dd');
   let ary = new Array();

@@ -2,7 +2,10 @@ function createRegistantsMail(stockId, companyName, companyAdd, file) {
   const attachments = [];
   Logger.log('companyAdd:' + companyAdd);
   const to = companyAdd;
-  const cc = 'ir@msetsu.com';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const cc = scriptProperties.getProperty('CC_EMAIL');
+ 
+
   const subject = '＜みんせつ＞【自動送信】事前データ送付のご案内';
   let body = '【' + companyName + '(' + stockId + ')】\n'
           + 'ご担当者さま\n\n'
@@ -23,7 +26,8 @@ function createDraftMail(stockId, companyName, companyAdd, attendeeFile, surveyF
   const attachments = [];
   Logger.log('companyAdd:' + companyAdd);
   const to = companyAdd;
-  const cc = 'ir@msetsu.com';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const cc = scriptProperties.getProperty('CC_EMAIL');
   const subject = '＜みんせつ＞【自動送信】事後データ送付のご案内';
   let body = '【' + companyName + '(' + stockId + ')】\n'
           + 'ご担当者さま\n\n'

@@ -1,4 +1,8 @@
 function updateEmailInfoFromCode() {//企業メールアドレス一覧からメールアドレスを取得し、スプシに転記する
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const sheetId = scriptProperties.getProperty('SHEET_ID');
+  const companyEmailSheetId = scriptProperties.getProperty('COMPANY_EMAIL_SHEET_ID');
+
   const zoomSheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
   const emailSheet = SpreadsheetApp.openById(companyEmailSheetId).getSheets()[0];
   const emailList = emailSheet.getDataRange().getValues(); // 説明会支援先_担当者email
