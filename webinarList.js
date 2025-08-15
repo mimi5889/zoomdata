@@ -29,9 +29,7 @@ function getWebinarList(accountIndex){//各IDから情報を取得しスプレ�
 }
 
 function updateUpcomingWebinarsToSheet(token,userId,zoomId) {//各ZoomIDからウェビナーリストの取得
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
 
   const now = new Date();//現在時刻
   // SSシート内容を全取得
@@ -100,9 +98,7 @@ function formatDate(date) {//日付形式の変換
 
 
 function setExclusionFlags() {//処理を除外するレコードにフラグを立てる
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const flgSheet = sheet.getSheetByName('除外');
   // 除外ワードの取得（除外シートA列）
   const exclusionWords = flgSheet.getRange('A2:A')
@@ -155,9 +151,7 @@ function runAllZoomChecks() {//グレーアウト処理
 }
 
 function grayOutMissingWebinars(allExistingIdsMap) {//グレーアウト処理
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
 
   const data = sheet.getDataRange().getValues(); // 全データ
   const rows = data.slice(1); // ヘッダー除く

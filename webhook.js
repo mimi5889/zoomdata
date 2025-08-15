@@ -1,9 +1,8 @@
 function sendSlackNotification(topic,folderUrl,webhooktxt,stockId,companyAdd) {//事後データslack通知
   const scriptProperties = PropertiesService.getScriptProperties();
   const webhookUrl = scriptProperties.getProperty('SLACK_WEBHOOK_URL');
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
-  const flgSheet = sheet.getSheetByName('除外');
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
   const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
   .getValues()
   .flat()

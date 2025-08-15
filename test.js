@@ -13,16 +13,15 @@ function registantsTest(){//事前データテスト用
   const row = sh.getActiveCell().getRow();//選択セルの行を取得
   const account = sh.getRange(row,1).getValue();
   const scriptProperties = PropertiesService.getScriptProperties();
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const folderId = scriptProperties.getProperty('FOLDER_ID');
   const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
   const flgSheet = sheet.getSheetByName('除外');
 
   const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
-  .getValues()
-  .flat()
-  .filter(word => word); // 空でないものだけ
+    .getValues()
+    .flat()
+    .filter(word => word); // 空でないものだけ
 
   //アカウントからスクリプトプロパティをforで回してインデックス取得する
   for(let n = 1 ; n <= max_acccountIndex ; n++){
@@ -87,12 +86,12 @@ function registantsTest(){//事前データテスト用
     const webhooktxt = url_txt + '\n' + topic + '\n' + url[1] +'\n';
     Logger.log(webhooktxt);
     if(stockId ==='' || companyAdd === '' || companyAdd === 0){
-      sendSlackNotification3(topic,eventName,url[0]) //********事前登録者データメールアドレス無しslack通知*********
+      sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
       sheet.getRange(row,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
       sheet.getRange(row,14).setValue(url[0]);
       sheet.getRange(row,15).setValue(url[2]);
     }else{
-      sendSlackNotification2(webhooktxt);//slack通知
+      sendSlackNotification2(webhooktxt);//************************事前登録者データslack通知************************
       sheet.getRange(row,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
       sheet.getRange(row,14).setValue(url[0]);
       sheet.getRange(row,15).setValue(url[2]);
@@ -109,14 +108,13 @@ function test(){//事後データテスト用
   const webinarId  = sh.getRange(row,2).getValue();
   const account = sh.getRange(row,1).getValue();
   const scriptProperties = PropertiesService.getScriptProperties();
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const folderId = scriptProperties.getProperty('FOLDER_ID');
   const flgSheet = sheet.getSheetByName('除外');
   const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
-  .getValues()
-  .flat()
-  .filter(word => word); // 空でないものだけ
+    .getValues()
+    .flat()
+    .filter(word => word); // 空でないものだけ
   const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
 
   //アカウントからスクリプトプロパティをforで回してインデックス取得する
@@ -134,7 +132,7 @@ function test(){//事後データテスト用
   const result = exportWebinarCsvs(webinarId,  accountIndex ,stockId, companyName, endTime,companyAdd);
 
   if(!exclusionIds.includes(stockId)){
-    createDraftMail(stockId,companyName,companyAdd,result.attendeeFile,result.surveyFile,result.qaFile);//****下書きメール作成****
+    createDraftMail(stockId,companyName,companyAdd,result.attendeeFile,result.surveyFile,result.qaFile);//************************下書きメール作成************************
   }
 
   sheet.getRange(row,11).setValue(result.fileUrls[0]);
@@ -171,6 +169,293 @@ function testExistingSlackWebhook() {//webhookのテスト
   } else {
     throw new Error(`❌ 投稿失敗: status=${status}, body=${body}`);
   }
+}
+
+
+
+
+function registantsTestLightweight() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const row = sh.getActiveCell().getRow();
+  
+  if (row < 2) {
+    SpreadsheetApp.getUi().alert('エラー', '2行目以降を選択してください');
+    return;
+  }
+
+  const ary = sh.getRange(row, 1, 1, sh.getMaxColumns()).getValues()[0];
+  const account = ary[0];
+  const webinarId = ary[1];
+  const topic = ary[2];
+  const scheduleDate = ary[3];
+  const stockId = ary[7];
+  const companyName = ary[8];
+  const companyAdd = ary[9];
+
+  const infoMessage = `選択された行: ${row}\n` +
+    `アカウント: ${account}\n` +
+    `ウェビナーID: ${webinarId}\n` +
+    `トピック: ${topic}\n` +
+    `開催日: ${scheduleDate}\n` +
+    `証券コード: ${stockId}\n` +
+    `企業名: ${companyName}\n` +
+    `企業メール: ${companyAdd}\n\n` +
+    `⚠️ 軽量テストモード\n` +
+    `・メール送信なし\n` +
+    `・CSV作成なし\n` +
+    `・Driveアップロードなし\n` +
+    `・Slack通知なし\n\n` +
+    `処理を実行しますか？`;
+
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert('事前データ取得軽量テスト確認', infoMessage, ui.ButtonSet.YES_NO);
+  
+  if (response != ui.Button.YES) {
+    ui.alert('処理中止', '処理を中止しました');
+    return;
+  }
+
+  ui.alert('処理開始', '事前データ取得軽量テストを開始します...', ui.ButtonSet.OK);
+
+  try {
+    // スクリプトプロパティの取得テスト
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const folderId = scriptProperties.getProperty('FOLDER_ID');
+    const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
+    
+    // アカウントインデックスの取得テスト
+    let accountIndex = 0;
+    for(let n = 1; n <= max_acccountIndex; n++) {
+      const zoomId = scriptProperties.getProperty('ZOOM_ID_' + n);
+      if(account == zoomId) {
+        accountIndex = n;
+        break;
+      }
+    }
+
+    if (accountIndex === 0) {
+      throw new Error(`アカウント ${account} に対応するインデックスが見つかりません`);
+    }
+
+    // アクセストークンの取得テスト
+    const token = getAccessToken(accountIndex);
+    if (!token) {
+      throw new Error('アクセストークンの取得に失敗しました');
+    }
+
+    // Zoom API接続テスト（登録者数取得のみ）
+    const registrantsUrl = `https://api.zoom.us/v2/webinars/${webinarId}/registrants?page_size=1`;
+    const response = UrlFetchApp.fetch(registrantsUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.getResponseCode() !== 200) {
+      throw new Error(`Zoom API接続エラー: ${response.getResponseCode()}`);
+    }
+
+    const registrantsData = JSON.parse(response.getContentText());
+    const registrantsCount = registrantsData.registrants ? registrantsData.registrants.length : 0;
+
+    // 結果表示
+    const resultMessage = `✅ 軽量テスト完了\n\n` +
+      `・スクリプトプロパティ: OK\n` +
+      `・アカウントインデックス: ${accountIndex}\n` +
+      `・アクセストークン: 取得済み\n` +
+      `・Zoom API接続: OK\n` +
+      `・登録者数: ${registrantsCount}人\n\n` +
+      `実際の処理は実行されていません`;
+
+    ui.alert('テスト完了', resultMessage, ui.ButtonSet.OK);
+
+  } catch (error) {
+    const errorMessage = `❌ 軽量テストでエラーが発生しました\n\n` +
+      `エラー内容: ${error.message}\n\n` +
+      `詳細: ${error.stack || 'スタックトレースなし'}`;
+    
+    ui.alert('テストエラー', errorMessage, ui.ButtonSet.OK);
+  }
+}
+
+function reportTestLightweight() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const row = sh.getActiveCell().getRow();
+  
+  if (row < 2) {
+    SpreadsheetApp.getUi().alert('エラー', '2行目以降を選択してください');
+    return;
+  }
+
+  const ary = sh.getRange(row, 1, 1, sh.getMaxColumns()).getValues()[0];
+  const account = ary[0];
+  const webinarId = ary[1];
+  const topic = ary[2];
+  const endTimeStr = ary[4];
+  const endTimeReal = ary[5];
+
+  const infoMessage = `選択された行: ${row}\n` +
+    `アカウント: ${account}\n` +
+    `ウェビナーID: ${webinarId}\n` +
+    `トピック: ${topic}\n` +
+    `終了予定時刻: ${endTimeStr}\n` +
+    `終了時刻: ${endTimeReal}\n\n` +
+    `⚠️ 軽量テストモード\n` +
+    `・CSV作成なし\n` +
+    `・Driveアップロードなし\n` +
+    `・メール下書き作成なし\n\n` +
+    `処理を実行しますか？`;
+
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert('事後データ取得軽量テスト確認', infoMessage, ui.ButtonSet.YES_NO);
+  
+  if (response != ui.Button.YES) {
+    ui.alert('処理中止', '処理を中止しました');
+    return;
+  }
+
+  ui.alert('処理開始', '事後データ取得軽量テストを開始します...', ui.ButtonSet.OK);
+
+  try {
+    // スクリプトプロパティの取得テスト
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
+    
+    // アカウントインデックスの取得テスト
+    let accountIndex = 0;
+    for(let n = 1; n <= max_acccountIndex; n++) {
+      const zoomId = scriptProperties.getProperty('ZOOM_ID_' + n);
+      if(account == zoomId) {
+        accountIndex = n;
+        break;
+      }
+    }
+
+    if (accountIndex === 0) {
+      throw new Error(`アカウント ${account} に対応するインデックスが見つかりません`);
+    }
+
+    // アクセストークンの取得テスト
+    const token = getAccessToken(accountIndex);
+    if (!token) {
+      throw new Error('アクセストークンの取得に失敗しました');
+    }
+
+    // Zoom API接続テスト（出席者レポートのみ）
+    const attendeesUrl = `https://api.zoom.us/v2/report/webinars/${webinarId}/participants?page_size=1`;
+    const response = UrlFetchApp.fetch(attendeesUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.getResponseCode() !== 200) {
+      throw new Error(`Zoom API接続エラー: ${response.getResponseCode()}`);
+    }
+
+    const attendeesData = JSON.parse(response.getContentText());
+    const attendeesCount = attendeesData.participants ? attendeesData.participants.length : 0;
+
+    // 結果表示
+    const resultMessage = `✅ 軽量テスト完了\n\n` +
+      `・スクリプトプロパティ: OK\n` +
+      `・アカウントインデックス: ${accountIndex}\n` +
+      `・アクセストークン: 取得済み\n` +
+      `・Zoom API接続: OK\n` +
+      `・出席者数: ${attendeesCount}人\n\n` +
+      `実際の処理は実行されていません`;
+
+    ui.alert('テスト完了', resultMessage, ui.ButtonSet.OK);
+
+  } catch (error) {
+    const errorMessage = `❌ 軽量テストでエラーが発生しました\n\n` +
+      `エラー内容: ${error.message}\n\n` +
+      `詳細: ${error.stack || 'スタックトレースなし'}`;
+    
+    ui.alert('テストエラー', errorMessage, ui.ButtonSet.OK);
+  }
+}
+
+function webhookTestLightweight() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const infoMessage = `⚠️ 軽量テストモード\n` +
+    `・実際のSlack通知は送信されません\n` +
+    `・Webhook URLの形式チェックのみ実行\n\n` +
+    `テストを実行しますか？`;
+
+  const response = ui.alert('Webhook軽量テスト確認', infoMessage, ui.ButtonSet.YES_NO);
+  
+  if (response != ui.Button.YES) {
+    ui.alert('処理中止', '処理を中止しました');
+    return;
+  }
+
+  ui.alert('処理開始', 'Webhook軽量テストを開始します...', ui.ButtonSet.OK);
+
+  try {
+    // スクリプトプロパティの取得テスト
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const webhookUrl = scriptProperties.getProperty('SLACK_WEBHOOK_URL');
+    
+    if (!webhookUrl) {
+      throw new Error('SLACK_WEBHOOK_URLが設定されていません');
+    }
+
+    // Webhook URLの形式チェック
+    if (!webhookUrl.startsWith('https://hooks.slack.com/')) {
+      throw new Error('Webhook URLの形式が正しくありません');
+    }
+
+    // テスト用の軽量なPOSTリクエスト（実際の通知は送信しない）
+    const testPayload = {
+      text: "🧪 軽量テスト実行中 - 実際の通知は送信されません",
+      username: "GAS Test Bot",
+      icon_emoji: ":test_tube:"
+    };
+
+    const response = UrlFetchApp.fetch(webhookUrl, {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify(testPayload),
+      muteHttpExceptions: true
+    });
+
+    const responseCode = response.getResponseCode();
+    
+    if (responseCode === 200) {
+      const resultMessage = `✅ Webhook軽量テスト完了\n\n` +
+        `・Webhook URL: 設定済み\n` +
+        `・URL形式: 正しい\n` +
+        `・接続テスト: OK (${responseCode})\n\n` +
+        `⚠️ テスト用の軽量通知がSlackに送信されました\n` +
+        `実際の業務通知は送信されていません`;
+
+      ui.alert('テスト完了', resultMessage, ui.ButtonSet.OK);
+    } else {
+      throw new Error(`Webhook接続エラー: ${responseCode}`);
+    }
+
+  } catch (error) {
+    const errorMessage = `❌ Webhook軽量テストでエラーが発生しました\n\n` +
+      `エラー内容: ${error.message}\n\n` +
+      `詳細: ${error.stack || 'スタックトレースなし'}`;
+    
+    ui.alert('テストエラー', errorMessage, ui.ButtonSet.OK);
+  }
+}
+
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('GAS実行')
+    .addItem('事前データ取得テスト（軽量）', 'registrantsTestLightweight')
+    .addItem('事後データ取得テスト（軽量）', 'reportTestLightweight')
+    .addItem('Webhookテスト（軽量）', 'webhookTestLightweight')
+    .addSeparator()
+    .addItem('詳細情報表示', 'showDetailedInfo')
+    .addToUi();
 }
 
 

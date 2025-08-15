@@ -15,8 +15,7 @@ function priorityJob_registants() {
 function getRegistantsData() {//登録者データ取得
 
   const scriptProperties = PropertiesService.getScriptProperties();
-  const sheetId = scriptProperties.getProperty('SHEET_ID');
-  const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const folderId = scriptProperties.getProperty('FOLDER_ID');
   const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');//設定されていない場合は4とする
 
@@ -26,170 +25,204 @@ function getRegistantsData() {//登録者データ取得
   let slackAry = new Array();
   let webhooktxt = '';
   let nomailCount = 0;//メールアドレス取得できない企業カウント
-  let errorCount = scriptProperties.getProperty('errorCount');
+  let errorCount = parseInt(scriptProperties.getProperty('errorCount') || '0');
+  let currentRow = parseInt(scriptProperties.getProperty('i') || '2');
 
   try{
-    for (let i = scriptProperties.getProperty('i');  i < sheet.getLastRow() ; i++){
-      ary = sheet.getRange(i, 1, 1, sheet.getMaxColumns()).getValues()[0];
-      const account = ary[0];
-      let accountIndex = 0;
+    for (let i = currentRow;  i < sheet.getLastRow() ; i++){
+      try {
+        ary = sheet.getRange(i, 1, 1, sheet.getMaxColumns()).getValues()[0];
+        const account = ary[0];
+        let accountIndex = 0;
 
-      //アカウントからスクリプトプロパティをforで回してインデックス取得する
-      for(let n = 1 ; n <= max_acccountIndex ; n++){
-        const zoomId = scriptProperties.getProperty('ZOOM_ID_' + n);
-        if(account == zoomId){
-          accountIndex = n;
+        //アカウントからスクリプトプロパティをforで回してインデックス取得する
+        for(let n = 1 ; n <= max_acccountIndex ; n++){
+          const zoomId = scriptProperties.getProperty('ZOOM_ID_' + n);
+          if(account == zoomId){
+            accountIndex = n;
+          }
         }
-      }
-      // 右から見て最初に空でないセルのインデックスを取得
-      const pIndex = 15; // P列のインデックス（1始まりで16列目 → 0始まりで15）
-      let colIndex = 15;
-      for (let col = ary.length; col >  pIndex; col--) {
-        if (ary[col - 1] !== '') {
-          colIndex = col;
+        // 右から見て最初に空でないセルのインデックスを取得
+        const pIndex = 15; // P列のインデックス（1始まりで16列目 → 0始まりで15）
+        let colIndex = 15;
+        for (let col = ary.length; col >  pIndex; col--) {
+          if (ary[col - 1] !== '') {
+            colIndex = col;
+          }
         }
-      }
-      Logger.log(colIndex);
+        Logger.log(colIndex);
 
-      const webinarId = ary[1];
-      const scheduleDate = Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd');
-      const scheduleDate0 = new Date(ary[3]);
-      scheduleDate0.setHours(0,0,0,0);
-      today.setHours(0,0,0,0);
-      Logger.log('ary[3]:' + ary[3]);
-      Logger.log('scheduleDate:' + scheduleDate);
-      const stockId = ary[7];
-      const companyName = ary[8];
-      const companyAdd = ary[9];
-      const topic = ary[2];
-      const filePrefix = `${companyName}(${stockId})様`;
-      const dateStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyyMMdd');
-      if (ary[6] === 1) continue;//除外フラグはパスする
-      if (scheduleDate0.getTime() < today.getTime()) continue;//開催日が過去のものはパスする
-      Logger.log(i);
-      Logger.log(companyName);
-      Logger.log(scheduleDate);
-      const token = getAccessToken(accountIndex); // トークン取得関数に index を渡す
-      let laterDays = 0;
+        const webinarId = ary[1];
+        const scheduleDate = Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd');
+        const scheduleDate0 = new Date(ary[3]);
+        scheduleDate0.setHours(0,0,0,0);
+        today.setHours(0,0,0,0);
+        Logger.log('ary[3]:' + ary[3]);
+        Logger.log('scheduleDate:' + scheduleDate);
+        const stockId = ary[7];
+        const companyName = ary[8];
+        const companyAdd = ary[9];
+        const topic = ary[2];
+        const filePrefix = `${companyName}(${stockId})様`;
+        const dateStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyyMMdd');
+        if (ary[6] === 1) continue;//除外フラグはパスする
+        if (scheduleDate0.getTime() < today.getTime()) continue;//開催日が過去のものはパスする
+        Logger.log(i);
+        Logger.log(companyName);
+        Logger.log(scheduleDate);
+        const token = getAccessToken(accountIndex); // トークン取得関数に index を渡す
+        let laterDays = 0;
 
-      let schedule = new Date(today);
-      Logger.log('today.getDate()'+today.getDate());
-      laterDays = 21;
-      schedule.setDate(today.getDate() + laterDays);
-      if (Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd') ===
-        Utilities.formatDate(schedule, 'Asia/Tokyo', 'yyyy/MM/dd')){//3週間前
-        const eventName = '3週間前';
+        let schedule = new Date(today);
+        Logger.log('today.getDate()'+today.getDate());
+        laterDays = 21;
+        schedule.setDate(today.getDate() + laterDays);
+        if (Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd') ===
+          Utilities.formatDate(schedule, 'Asia/Tokyo', 'yyyy/MM/dd')){//3週間前
+          const eventName = '3週間前';
+          Logger.log(eventName);
+          Logger.log(topic);
+          Logger.log(scheduleDate);
+
+          const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
+          const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
+          if(stockId ===''){
+            sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+            nomailCount = nomailCount + 1;
+          }else{
+            slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+          }
+        }
+        schedule = new Date(today);
+        laterDays = 7;
+        schedule.setDate(today.getDate() + laterDays);
+        if (Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd') ===
+          Utilities.formatDate(schedule, 'Asia/Tokyo', 'yyyy/MM/dd')){//1週間前
+          const eventName = '1週間前';
+          Logger.log(eventName);
+          Logger.log(topic);
+          Logger.log(scheduleDate);
+          const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
+          const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
+          if(stockId ==='' || companyAdd === '' || companyAdd === 0){
+            sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+            nomailCount = nomailCount + 1;
+          }else{
+            slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+          }
+        }
+        schedule = new Date(today);
+        laterDays = 0;
+        schedule.setDate(today.getDate() + laterDays);
+        if (Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd') ===
+          Utilities.formatDate(schedule, 'Asia/Tokyo', 'yyyy/MM/dd')){//当日
+          const eventName = '当日';
+          Logger.log(eventName);
+          Logger.log(topic);
+          Logger.log(scheduleDate);
+          const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
+          const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
+          if(stockId ==='' || companyAdd === '' || companyAdd === 0){
+            sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+            nomailCount = nomailCount + 1;
+          }else{
+            slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+          }
+        } 
+
+        //登録者数を取得
+        //登録者数に増減があったら動作する
+
+        const registantsOrgCount = sheet.getRange(i,15).getValue();
+        const eventName = '登録者数変更';
+        const registantsCount = getRegistantsCount(webinarId,token,topic);
+        const aryday = new Date(Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd'));
+        const d1 = new Date(aryday.getFullYear(),aryday.getMonth(),aryday.getDate());
+        const d2 = new Date(today.getFullYear(),today.getMonth(),today.getDate());
+        const diffTime = d1.getTime() - d2.getTime();
+        laterDays = diffTime / (1000 * 60 * 60 * 24);
+        //laterDays =  Math.floor((aryday.getTime() - today.getTime())/ (1000 * 60 * 60 * 24));
         Logger.log(eventName);
         Logger.log(topic);
-        Logger.log(scheduleDate);
+        Logger.log('laterDays:' + laterDays);
+        schedule = new Date(today);
+        schedule.setDate(today.getDate() + laterDays);
+        if(registantsOrgCount !== registantsCount && laterDays <=21 && laterDays >=0 ){
+          const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
+          const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
+          if(stockId ==='' || companyAdd === '' || companyAdd === 0){
+            sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+            nomailCount = nomailCount + 1;
+          }else{
+            slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
+            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+            sheet.getRange(i,14).setValue(url[0]);
+            sheet.getRange(i,15).setValue(url[2]);
+          }
 
-        const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
-        const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
-        if(stockId ===''){
-          sendSlackNotification3(topic,eventName,url[0]) //********事前登録者データメールアドレス無しslack通知*********
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-          nomailCount = nomailCount + 1;
-        }else{
-          slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
+        }
+
+        // 進捗を保存
+        scriptProperties.setProperty('i', String(parseInt(i + 1, 10)));
+        scriptProperties.setProperty('slackAry', JSON.stringify(slackAry));
+
+        //強制的にエラー
+        //if (i === 11) throw new Error("エラーテスト");
+        //if (i === 13) throw new Error("エラーテスト");
+        
+      } catch (rowError) {
+        // 個別の行処理でエラーが発生した場合
+        Logger.log(`行 ${i} の処理でエラー: ${rowError.message}`);
+        
+        // Googleサーバーエラーの場合
+        if (rowError.message.includes('Service temporarily unavailable') || 
+            rowError.message.includes('Internal error') ||
+            rowError.message.includes('Quota exceeded') ||
+            rowError.message.includes('Rate Limit Exceeded')) {
+          
+          if (errorCount >= 3) {
+            // 3回以上エラーが発生した場合は中止
+            webhooktxt = `⚠️Googleサーバーエラーが3回発生しました\n処理を中止します\n現在の行: ${i}\nエラー: ${rowError.message}`;
+            sendSlackNotification2(webhooktxt); //************************個別行エラー処理slack通知************************
+            scriptProperties.setProperty('i', '2');
+            scriptProperties.setProperty('slackAry', 'NaN');
+            scriptProperties.setProperty('errorCount', '0');
+            return;
+          } else {
+            // 再実行を試行
+            webhooktxt = `⚠️Googleサーバーエラーが発生しました\n1分後に再実行します\n現在の行: ${i}\nエラー: ${rowError.message}\n再実行回数: ${errorCount + 1}/3`;
+            sendSlackNotification2(webhooktxt); //************************個別行エラー処理slack通知************************
+            scriptProperties.setProperty('errorCount', String(errorCount + 1));
+            setRetryTrigger();
+            return;
+          }
+        } else {
+          // その他のエラーの場合は次の行に進む
+          Logger.log(`行 ${i} をスキップして次の行に進みます`);
+          continue;
         }
       }
-      schedule = new Date(today);
-      laterDays = 7;
-      schedule.setDate(today.getDate() + laterDays);
-      if (Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd') ===
-        Utilities.formatDate(schedule, 'Asia/Tokyo', 'yyyy/MM/dd')){//1週間前
-        const eventName = '1週間前';
-        Logger.log(eventName);
-        Logger.log(topic);
-        Logger.log(scheduleDate);
-        const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
-        const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
-        if(stockId ==='' || companyAdd === '' || companyAdd === 0){
-          sendSlackNotification3(topic,eventName,url[0]) //********事前登録者データメールアドレス無しslack通知*********
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-          nomailCount = nomailCount + 1;
-        }else{
-          slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-        }
-      }
-      schedule = new Date(today);
-      laterDays = 0;
-      schedule.setDate(today.getDate() + laterDays);
-      if (Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd') ===
-        Utilities.formatDate(schedule, 'Asia/Tokyo', 'yyyy/MM/dd')){//当日
-        const eventName = '当日';
-        Logger.log(eventName);
-        Logger.log(topic);
-        Logger.log(scheduleDate);
-        const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
-        const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
-        if(stockId ==='' || companyAdd === '' || companyAdd === 0){
-          sendSlackNotification3(topic,eventName,url[0]) //********事前登録者データメールアドレス無しslack通知*********
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-          nomailCount = nomailCount + 1;
-        }else{
-          slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-        }
-      } 
-
-      //登録者数を取得
-      //登録者数に増減があったら動作する
-
-      const registantsOrgCount = sheet.getRange(i,15).getValue();
-      const eventName = '登録者数変更';
-      const registantsCount = getRegistantsCount(webinarId,token,topic);
-      const aryday = new Date(Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd'));
-      const d1 = new Date(aryday.getFullYear(),aryday.getMonth(),aryday.getDate());
-      const d2 = new Date(today.getFullYear(),today.getMonth(),today.getDate());
-      const diffTime = d1.getTime() - d2.getTime();
-      laterDays = diffTime / (1000 * 60 * 60 * 24);
-      //laterDays =  Math.floor((aryday.getTime() - today.getTime())/ (1000 * 60 * 60 * 24));
-      Logger.log(eventName);
-      Logger.log(topic);
-      Logger.log('laterDays:' + laterDays);
-      schedule = new Date(today);
-      schedule.setDate(today.getDate() + laterDays);
-      if(registantsOrgCount !== registantsCount && laterDays <=21 && laterDays >=0 ){
-        const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
-        const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
-        if(stockId ==='' || companyAdd === '' || companyAdd === 0){
-          sendSlackNotification3(topic,eventName,url[0]) //********事前登録者データメールアドレス無しslack通知*********
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-          nomailCount = nomailCount + 1;
-        }else{
-          slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
-          sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-          sheet.getRange(i,14).setValue(url[0]);
-          sheet.getRange(i,15).setValue(url[2]);
-        }
-
-      }
-
-      scriptProperties.setProperty('i', String(parseInt(i + 1, 10)));
-      scriptProperties.setProperty('slackAry', JSON.stringify(slackAry));
-
-      //強制的にエラー
-      //if (i === 11) throw new Error("エラーテスト");
-      //if (i === 13) throw new Error("エラーテスト");
-      
-
     }
     //配列で復元
     let slackAry_props = scriptProperties.getProperty('slackAry');
@@ -214,34 +247,60 @@ function getRegistantsData() {//登録者データ取得
   }catch(e){
     const msg = e.message || '';
     if (msg.includes("Address unavailable")){
-      if(errorCount >1){
-        webhooktxt = msg + '\n⚠️ネットワーク一時エラーです';
-        sendSlackNotification2(webhooktxt);//********slack通知**********
+      // Zoom APIエラーの場合
+      if (errorCount >= 3) {
+        // 3回以上エラーが発生した場合は中止
+        webhooktxt = `⚠️Zoom APIエラーが3回発生しました\n処理を中止します\n行番号: ${currentRow}\nアカウント: ${ary[0] || '不明'}\nトピック: ${ary[2] || '不明'}\nエラー: ${msg}`;
+        sendSlackNotification2(webhooktxt); //************************エラー処理slack通知************************
         scriptProperties.setProperty('i', '2');
         scriptProperties.setProperty('slackAry', 'NaN');
-        scriptProperties.setProperty('errorCount', '1');
+        scriptProperties.setProperty('errorCount', '0');
         return;
-      }else{
-        webhooktxt = msg + '\n⚠️ネットワーク一時エラーです\n1分後に再実行します';
-        sendSlackNotification2(webhooktxt);//********slack通知**********
-        scriptProperties.setProperty('errorCount', errorCount + 1);
+      } else {
+        // 再実行を試行
+        webhooktxt = `⚠️Zoom APIエラーが発生しました\n1分後に再実行します\n行番号: ${currentRow}\nアカウント: ${ary[0] || '不明'}\nトピック: ${ary[2] || '不明'}\nエラー: ${msg}\n再実行回数: ${errorCount + 1}/3`;
+        sendSlackNotification2(webhooktxt); //************************エラー処理slack通知************************
+        scriptProperties.setProperty('errorCount', String(errorCount + 1));
+        setRetryTrigger();
+        return;
+      }
+    }else if (msg.includes("Service temporarily unavailable") || 
+              msg.includes("Internal error") ||
+              msg.includes("Quota exceeded") ||
+              msg.includes("Rate Limit Exceeded")){
+      // Googleサーバーエラーの場合
+      if (errorCount >= 3) {
+        // 3回以上エラーが発生した場合は中止
+        webhooktxt = `⚠️Googleサーバーエラーが3回発生しました\n処理を中止します\n行番号: ${currentRow}\nアカウント: ${ary[0] || '不明'}\nトピック: ${ary[2] || '不明'}\nエラー: ${msg}`;
+        sendSlackNotification2(webhooktxt); //************************エラー処理slack通知************************
+        scriptProperties.setProperty('i', '2');
+        scriptProperties.setProperty('slackAry', 'NaN');
+        scriptProperties.setProperty('errorCount', '0');
+        return;
+      } else {
+        // 再実行を試行
+        webhooktxt = `⚠️Googleサーバーエラーが発生しました\n1分後に再実行します\n行番号: ${currentRow}\nアカウント: ${ary[0] || '不明'}\nトピック: ${ary[2] || '不明'}\nエラー: ${msg}\n再実行回数: ${errorCount + 1}/3`;
+        sendSlackNotification2(webhooktxt); //************************エラー処理slack通知************************
+        scriptProperties.setProperty('errorCount', String(errorCount + 1));
         setRetryTrigger();
         return;
       }
     }else{
-      if(errorCount >1){
-        webhooktxt = msg + '\n⚠️'+ary[2]+'処理中に事前データ取得でエラーが発生しました';
-        sendSlackNotification2(webhooktxt);//********slack通知**********
+      // その他のエラーの場合
+      if (errorCount >= 3) {
+        // 3回以上エラーが発生した場合は中止
+        webhooktxt = `⚠️その他のエラーが3回発生しました\n処理を中止します\n行番号: ${currentRow}\nアカウント: ${ary[0] || '不明'}\nトピック: ${ary[2] || '不明'}\nエラー: ${msg}`;
+        sendSlackNotification2(webhooktxt); //************************エラー処理slack通知************************
         scriptProperties.setProperty('i', '2');
         scriptProperties.setProperty('slackAry', 'NaN');
-        scriptProperties.setProperty('errorCount', '1');
+        scriptProperties.setProperty('errorCount', '0');
         return;
-
-      }else{
-        webhooktxt = msg + '\n⚠️'+ary[2]+'処理中に事前データ取得でエラーが発生しました\n1分後に再実行します';
+      } else {
+        // 再実行を試行
+        webhooktxt = `⚠️その他のエラーが発生しました\n1分後に再実行します\n行番号: ${currentRow}\nトピック: ${ary[2] || '不明'}\nエラー: ${msg}\n再実行回数: ${errorCount + 1}/3`;
         Logger.log(webhooktxt);
-        sendSlackNotification2(webhooktxt);//********slack通知**********
-        scriptProperties.setProperty('errorCount', errorCount + 1);
+        sendSlackNotification2(webhooktxt); //************************エラー処理slack通知************************
+        scriptProperties.setProperty('errorCount', String(errorCount + 1));
         setRetryTrigger();
         return;
       }
@@ -251,13 +310,13 @@ function getRegistantsData() {//登録者データ取得
   Logger.log(webhooktxt);
   if(slackAry.length == 0 && nomailCount == 0){
     webhooktxt = 'ℹ️本日の事前データ取得通知はありません';
-    sendSlackNotification2(webhooktxt);//********slack通知**********
+    sendSlackNotification2(webhooktxt); //************************処理完了slack通知************************
   }else if(slackAry.length > 0){
-    sendSlackNotification2(webhooktxt);//********slack通知**********
+    sendSlackNotification2(webhooktxt); //************************処理完了slack通知************************
   }
   scriptProperties.setProperty('i', '2');
   scriptProperties.setProperty('slackAry', 'NaN');
-  scriptProperties.setProperty('errorCount', '1');
+  scriptProperties.setProperty('errorCount', '0');
 
   console.log('-----処理終了------');
 

@@ -38,23 +38,19 @@ function webinarReportsTrigger(){//10分おき（5分おき？）トリガー設
 }
 
 function generateWebinarReports() {//データ取得CSV作成メインプログラム
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
   const data = sheet.getDataRange().getValues();
   const now = new Date();
-  const scriptProperties = PropertiesService.getScriptProperties();
   const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
-
-
-  for(let accountIndex = 1 ; accountIndex <= max_acccountIndex ; accountIndex ++){
-    const props = PropertiesService.getScriptProperties();
-    const zoomId = props.getProperty('ZOOM_ID_' + accountIndex);
-    const scriptProperties = PropertiesService.getScriptProperties();
-    const sheetId = scriptProperties.getProperty('SHEET_ID');
-    const sheet = SpreadsheetApp.openById(sheetId).getSheets()[0];
-    const flgSheet = sheet.getSheetByName('除外');
-    const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
+  const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
     .getValues()
     .flat()
     .filter(word => word); // 空でないものだけ
+
+  for(let accountIndex = 1 ; accountIndex <= max_acccountIndex ; accountIndex ++){
+    const zoomId = scriptProperties.getProperty('ZOOM_ID_' + accountIndex);
 
     const matchedIndexes = data
       .map((row, i) => row[0] === zoomId ? i : -1)//zoomIDが一致する行だけ動かす
@@ -112,13 +108,12 @@ function generateWebinarReports() {//データ取得CSV作成メインプログ�
       Logger.log('----exclusionIds----');
       Logger.log(exclusionIds);
       if(!exclusionIds.includes(stockId)){
-        createDraftMail(stockId,companyName,companyAdd,result.attendeeFile,result.surveyFile,result.qaFile);//****下書きメール作成****
+        createDraftMail(stockId,companyName,companyAdd,result.attendeeFile,result.surveyFile,result.qaFile);//************************下書きメール作成************************
       }
 
     });
   }
 }
-
 
 function fetchWebinarReturnTime(webinarId,accountIndex) {//終了時刻判定
   const token = getAccessToken(accountIndex); // トークン取得関数に index を渡す
@@ -140,6 +135,7 @@ function fetchWebinarReturnTime(webinarId,accountIndex) {//終了時刻判定
   const status = res.getResponseCode();        // HTTP ステータス
   const body   = res.getContentText();         // JSON 文字列
   Logger.log(`metrics/webinars status=${status}`);
+  Logger.log(body);
 
   // --- 正常終了（200） ---
   if (status === 200) {
@@ -619,10 +615,10 @@ function generateQaCsv(questions,topic) {//Q&A結果レポート
 
 function fetchZoomData(url, token) {//ZooAPI接続
 
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const logSheetId = scriptProperties.getProperty('LOG_SHEET_ID');
-  const logSs = SpreadsheetApp.openById(logSheetId);
-  const logSh = logSs.getSheets()[0]; // 一番左のシート
+  //const scriptProperties = PropertiesService.getScriptProperties();
+  //const logSheetId = scriptProperties.getProperty('LOG_SHEET_ID');
+  //const logSs = SpreadsheetApp.openById(logSheetId);
+  //const logSh = logSs.getSheets()[0]; // 一番左のシート
 
   try {
     const response = UrlFetchApp.fetch(url, {
@@ -640,15 +636,15 @@ function fetchZoomData(url, token) {//ZooAPI接続
     Logger.log(`📥 Status: ${code}`);
     Logger.log(`📄 Body: ${body}`);
 
-    const logSh_lastRow = logSh.getLastRow();
-    const maxLength = 50000;
+    //const logSh_lastRow = logSh.getLastRow();
+    //const maxLength = 50000;
 
-    const chunks = [];
+    //const chunks = [];
 
-    for (let i = 0; i < body.length; i += maxLength) {
-      chunks.push(body.substring(i, i + maxLength));
-    }
-    const values2D = chunks.map(c => [c]); // 各chunkを1列の2次元配列に変換
+    //for (let i = 0; i < body.length; i += maxLength) {
+    //  chunks.push(body.substring(i, i + maxLength));
+    //}
+    //const values2D = chunks.map(c => [c]); // 各chunkを1列の2次元配列に変換
 
     //logSh.getRange(logSh_lastRow+1,1).setValue(new Date());
     //logSh.getRange(logSh_lastRow+1,2).setValue(url);
