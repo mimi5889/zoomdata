@@ -27,13 +27,13 @@ function getRegistantsData() {//登録者データ取得
   let nomailCount = 0;//メールアドレス取得できない企業カウント
   let errorCount = parseInt(scriptProperties.getProperty('errorCount') || '0');
   let currentRow = parseInt(scriptProperties.getProperty('i') || '2');
+  let accountIndex = 0;
 
   try{
     for (let i = currentRow;  i < sheet.getLastRow() ; i++){
       try {
         ary = sheet.getRange(i, 1, 1, sheet.getMaxColumns()).getValues()[0];
         const account = ary[0];
-        let accountIndex = 0;
 
         //アカウントからスクリプトプロパティをforで回してインデックス取得する
         for(let n = 1 ; n <= max_acccountIndex ; n++){
@@ -154,6 +154,7 @@ function getRegistantsData() {//登録者データ取得
         const registantsOrgCount = sheet.getRange(i,15).getValue();
         const eventName = '登録者数変更';
         const registantsCount = getRegistantsCount(webinarId,token,topic);
+        sheet.getRange(i,15).setValue(registantsCount);
         const aryday = new Date(Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd'));
         const d1 = new Date(aryday.getFullYear(),aryday.getMonth(),aryday.getDate());
         const d2 = new Date(today.getFullYear(),today.getMonth(),today.getDate());

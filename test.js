@@ -16,7 +16,7 @@ function registantsTest(){//事前データテスト用
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const folderId = scriptProperties.getProperty('FOLDER_ID');
   const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
-  const flgSheet = sheet.getSheetByName('除外');
+  const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
 
   const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
     .getValues()
@@ -110,7 +110,7 @@ function test(){//事後データテスト用
   const scriptProperties = PropertiesService.getScriptProperties();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const folderId = scriptProperties.getProperty('FOLDER_ID');
-  const flgSheet = sheet.getSheetByName('除外');
+  const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
   const exclusionIds = flgSheet.getRange('B2:B')//メールの自動送信を除外する証券コード
     .getValues()
     .flat()
@@ -445,17 +445,6 @@ function webhookTestLightweight() {
     
     ui.alert('テストエラー', errorMessage, ui.ButtonSet.OK);
   }
-}
-
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('GAS実行')
-    .addItem('事前データ取得テスト（軽量）', 'registrantsTestLightweight')
-    .addItem('事後データ取得テスト（軽量）', 'reportTestLightweight')
-    .addItem('Webhookテスト（軽量）', 'webhookTestLightweight')
-    .addSeparator()
-    .addItem('詳細情報表示', 'showDetailedInfo')
-    .addToUi();
 }
 
 

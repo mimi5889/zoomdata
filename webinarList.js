@@ -99,7 +99,7 @@ function formatDate(date) {//日付形式の変換
 
 function setExclusionFlags() {//処理を除外するレコードにフラグを立てる
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-  const flgSheet = sheet.getSheetByName('除外');
+  const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
   // 除外ワードの取得（除外シートA列）
   const exclusionWords = flgSheet.getRange('A2:A')
     .getValues()
