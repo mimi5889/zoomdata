@@ -870,5 +870,278 @@ function setExclusionFlagsTest() {
   }
 }
 
+// ===== 複数エンドポイントからcustom_survey情報をテストする関数 =====
+
+function testCustomSurveyEndpoints() {
+  // アクティブセルのウェビナー情報を利用して、複数のエンドポイントからcustom_surveyの情報をテスト
+  Logger.log('=== 🧪 複数エンドポイントcustom_surveyテスト開始 ===');
+  
+  try {
+    // アクティブセルの情報を取得
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const row = sh.getActiveCell().getRow();
+    
+    if (row < 2) {
+      Logger.log('❌ ヘッダー行が選択されています。データ行を選択してください。');
+      return;
+    }
+    
+    const account = sh.getRange(row, 1).getValue(); // A列：アカウント
+    const webinarId = sh.getRange(row, 2).getValue(); // B列：ウェビナーID
+    const topic = sh.getRange(row, 3).getValue(); // C列：トピック
+    
+    Logger.log(`選択された行: ${row}`);
+    Logger.log(`アカウント: ${account}`);
+    Logger.log(`ウェビナーID: ${webinarId}`);
+    Logger.log(`トピック: ${topic}`);
+    
+    if (!account || !webinarId) {
+      Logger.log('❌ アカウントまたはウェビナーIDが取得できませんでした。');
+      return;
+    }
+    
+    // アカウントからスクリプトプロパティをforで回してインデックス取得する
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const max_acccountIndex = parseInt(scriptProperties.getProperty('MAX_ACCOUNT_INDEX') || '4');
+    let accountIndex = 0;
+    
+    for (let n = 1; n <= max_acccountIndex; n++) {
+      const zoomId = scriptProperties.getProperty('ZOOM_ID_' + n);
+      if (account == zoomId) {
+        accountIndex = n;
+        break;
+      }
+    }
+    
+    if (accountIndex === 0) {
+      Logger.log('❌ アカウントのインデックスが見つかりませんでした。');
+      return;
+    }
+    
+    Logger.log(`アカウントインデックス: ${accountIndex}`);
+    
+    // トークンを取得
+    const token = getAccessToken(accountIndex);
+    if (!token) {
+      Logger.log('❌ トークンの取得に失敗しました。');
+      return;
+    }
+    
+    Logger.log('✅ トークン取得成功');
+    
+    // 複数のエンドポイントをテスト
+    Logger.log('\n🚀 複数エンドポイントテスト開始');
+    
+    const testResults = [];
+    
+    // 1. 通常のsurveyエンドポイント（webinarId使用）
+    Logger.log('\n--- 1. 通常のsurveyエンドポイント（webinarId使用） ---');
+    const result1 = testCustomSurveyEndpoint(
+      `https://api.zoom.us/v2/webinars/${webinarId}/survey?fields=custom_survey`,
+      token,
+      '通常のsurveyエンドポイント'
+    );
+    testResults.push({ name: '通常のsurveyエンドポイント', result: result1 });
+    
+    // 2. 軽量版エンドポイント（webinarId使用）
+    Logger.log('\n--- 2. 軽量版エンドポイント（webinarId使用） ---');
+    const result2 = testCustomSurveyEndpoint(
+      `https://api.zoom.us/v2/webinars/${webinarId}?fields=settings,survey,questions`,
+      token,
+      '軽量版エンドポイント'
+    );
+    testResults.push({ name: '軽量版エンドポイント', result: result2 });
+    
+    // 3. UUIDを取得してからsurveyエンドポイント
+    Logger.log('\n--- 3. UUID経由surveyエンドポイント ---');
+    const uuid = getWebinarUUID(webinarId, token);
+    if (uuid) {
+      const result3 = testCustomSurveyEndpoint(
+        `https://api.zoom.us/v2/webinars/${uuid}/survey?fields=custom_survey`,
+        token,
+        'UUID経由surveyエンドポイント'
+      );
+      testResults.push({ name: 'UUID経由surveyエンドポイント', result: result3 });
+    } else {
+      Logger.log('❌ UUIDが取得できませんでした');
+      testResults.push({ name: 'UUID経由surveyエンドポイント', result: { success: false, error: 'UUID取得失敗' } });
+    }
+    
+    // 4. UUID経由の軽量版エンドポイント
+    Logger.log('\n--- 4. UUID経由軽量版エンドポイント ---');
+    if (uuid) {
+      const result4 = testCustomSurveyEndpoint(
+        `https://api.zoom.us/v2/webinars/${uuid}?fields=settings,survey,questions`,
+        token,
+        'UUID経由軽量版エンドポイント'
+      );
+      testResults.push({ name: 'UUID経由軽量版エンドポイント', result: result4 });
+    } else {
+      testResults.push({ name: 'UUID経由軽量版エンドポイント', result: { success: false, error: 'UUID取得失敗' } });
+    }
+    
+    // 5. ダッシュボード系エンドポイント
+    Logger.log('\n--- 5. ダッシュボード系エンドポイント ---');
+    const result5 = testCustomSurveyEndpoint(
+      `https://api.zoom.us/v2/metrics/webinars/${webinarId}/participants?type=past&page_size=1`,
+      token,
+      'ダッシュボード系エンドポイント'
+    );
+    testResults.push({ name: 'ダッシュボード系エンドポイント', result: result5 });
+    
+    // 結果の比較とサマリー
+    Logger.log('\n=== 📊 テスト結果サマリー ===');
+    testResults.forEach((test, index) => {
+      const status = test.result.success ? '✅' : '❌';
+      const details = test.result.success ? 
+        `取得時間: ${test.result.responseTime}ms, データサイズ: ${test.result.dataSize}文字` : 
+        `エラー: ${test.result.error}`;
+      
+      Logger.log(`${index + 1}. ${test.name}: ${status}`);
+      Logger.log(`   ${details}`);
+    });
+    
+    // 成功したエンドポイントの分析
+    const successfulTests = testResults.filter(test => test.result.success);
+    if (successfulTests.length > 0) {
+      Logger.log('\n=== 🏆 成功したエンドポイント分析 ===');
+      
+      // レスポンス時間でソート
+      successfulTests.sort((a, b) => a.result.responseTime - b.result.responseTime);
+      
+      successfulTests.forEach((test, index) => {
+        Logger.log(`${index + 1}. ${test.name}: ${test.result.responseTime}ms`);
+      });
+      
+      Logger.log(`\n最速エンドポイント: ${successfulTests[0].name} (${successfulTests[0].result.responseTime}ms)`);
+    } else {
+      Logger.log('\n❌ すべてのエンドポイントで失敗しました');
+    }
+    
+    Logger.log('=== 🎯 複数エンドポイントcustom_surveyテスト完了 ===');
+    
+  } catch (error) {
+    Logger.log(`❌ テスト実行エラー: ${error.message}`);
+    Logger.log(`エラー詳細: ${error.stack || 'スタックトレースなし'}`);
+  }
+}
+
+function testCustomSurveyEndpoint(url, token, endpointName) {
+  // 個別のエンドポイントをテスト
+  try {
+    Logger.log(`URL: ${url}`);
+    
+    const startTime = new Date();
+    const response = UrlFetchApp.fetch(url, {
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+    const endTime = new Date();
+    
+    const responseTime = endTime.getTime() - startTime.getTime();
+    const statusCode = response.getResponseCode();
+    const body = response.getContentText();
+    
+    Logger.log(`ステータスコード: ${statusCode}`);
+    Logger.log(`レスポンス時間: ${responseTime}ms`);
+    
+    if (statusCode === 200) {
+      try {
+        const data = JSON.parse(body);
+        const dataSize = body.length;
+        
+        Logger.log(`データサイズ: ${dataSize}文字`);
+        
+        // custom_surveyの情報を探す
+        let customSurveyInfo = null;
+        let hasCustomSurvey = false;
+        
+        if (data.custom_survey) {
+          customSurveyInfo = data.custom_survey;
+          hasCustomSurvey = true;
+        } else if (data.settings && data.settings.survey) {
+          customSurveyInfo = data.settings.survey;
+          hasCustomSurvey = true;
+        } else if (data.survey) {
+          customSurveyInfo = data.survey;
+          hasCustomSurvey = true;
+        }
+        
+        if (hasCustomSurvey) {
+          Logger.log(`✅ custom_survey情報取得成功`);
+          Logger.log(`custom_survey構造: ${Object.keys(customSurveyInfo).join(', ')}`);
+          
+          if (customSurveyInfo.questions) {
+            Logger.log(`設問数: ${customSurveyInfo.questions.length}`);
+          }
+        } else {
+          Logger.log(`⚠️ custom_survey情報が見つかりませんでした`);
+          Logger.log(`利用可能なフィールド: ${Object.keys(data).join(', ')}`);
+        }
+        
+        return {
+          success: true,
+          responseTime: responseTime,
+          dataSize: dataSize,
+          hasCustomSurvey: hasCustomSurvey,
+          customSurveyInfo: customSurveyInfo
+        };
+        
+      } catch (parseError) {
+        Logger.log(`⚠️ JSON解析エラー: ${parseError.message}`);
+        return {
+          success: false,
+          error: `JSON解析エラー: ${parseError.message}`,
+          responseTime: responseTime
+        };
+      }
+    } else {
+      Logger.log(`❌ HTTPエラー: ${statusCode}`);
+      Logger.log(`エラー内容: ${body.substring(0, 200)}...`);
+      return {
+        success: false,
+        error: `HTTP ${statusCode}: ${body.substring(0, 100)}`,
+        responseTime: responseTime
+      };
+    }
+    
+  } catch (fetchError) {
+    Logger.log(`⚠️ フェッチエラー: ${fetchError.message}`);
+    return {
+      success: false,
+      error: `フェッチエラー: ${fetchError.message}`
+    };
+  }
+}
+
+function getWebinarUUID(webinarId, token) {
+  // ウェビナーIDからUUIDを取得
+  try {
+    Logger.log(`UUID取得開始: ${webinarId}`);
+    
+    const response = UrlFetchApp.fetch(
+      `https://api.zoom.us/v2/webinars/${webinarId}?fields=uuid`, 
+      {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
+    );
+
+    if (response.getResponseCode() === 200) {
+      const data = JSON.parse(response.getContentText());
+      if (data && data.uuid) {
+        Logger.log(`✅ UUID取得成功: ${data.uuid}`);
+        return data.uuid;
+      }
+    }
+    
+    Logger.log('❌ UUIDが取得できませんでした');
+    return null;
+  } catch (e) {
+    Logger.log(`⚠️ UUID取得エラー: ${e.message}`);
+    return null;
+  }
+}
+
 
 

@@ -197,9 +197,13 @@ function exportWebinarCsvs(webinarId, accountIndex, stockId, companyName, endTim
 
     // アンケート結果レポート
     Logger.log('----------アンケート結果レポート-----------');
+    
     const result = validateZoomDataWithRetry(
       () => fetchZoomData(`https://api.zoom.us/v2/webinars/${webinarId}/survey`, token),
-      (d) => d && d.custom_survey && Array.isArray(d.custom_survey.questions) && d.custom_survey.questions.length > 0
+      (d) => d && d.custom_survey && Array.isArray(d.custom_survey.questions) && d.custom_survey.questions.length > 0,
+      5, // 最大5回リトライ
+      webinarId, // webinarIdを渡す
+      token // tokenを渡す
     );
 
     if(result.valid) { 
@@ -212,14 +216,19 @@ function exportWebinarCsvs(webinarId, accountIndex, stockId, companyName, endTim
       const surveyAnswers = surveys.survey_answers;
 
       //アンケートの回答が無くても出力する
-      const surveyCsv =  generateSurveyCsv(surveyAnswers,customSurveyData, topic);  // ← CSV生成関数も構造に合わせて
+      const surveyCsv = generateSurveyCsv(surveyAnswers, customSurveyData, topic);
       const surveyCsvWithBom = bom + surveyCsv;
       const surveyBlob = Utilities.newBlob(surveyCsvWithBom, MimeType.CSV, `${filePrefix}-Survey Report_${dateStr}.csv`);
       surveyFile = folder.createFile(surveyBlob);
       webhooktxt += '\n・アンケート結果レポート';
       csvAry.push(surveyFile.getUrl());
-      Utilities.sleep(300);
-    }else{
+      Utilities.sleep(1000);
+    } else {
+      // アンケートが存在するが遅延している場合の処理
+      if (result.surveyExists) {
+        Logger.log('アンケートは存在するが、データ取得に遅延が発生しています');
+        webhooktxt += '\n・アンケート結果レポート（データ遅延のため取得できませんでした）';
+      }
       csvAry.push('');//空白で作成
     }
 
@@ -684,25 +693,41 @@ function sanitizeCell(cell) {//改行を削除
  *
  * @param {function(): Object} fetchFn - データ取得関数（例: () => fetchZoomData(url, token)）
  * @param {function(Object): boolean} validateFn - バリデーション関数（true なら有効）
- * @param {number} [retryMax=3] - 最大リトライ回数
- * @return {Object} { valid: boolean, data: any }
+ * @param {number} [retryMax=5] - 最大リトライ回数
+ * @param {string} [webinarId=null] - ウェビナーID（軽量チェック用）
+ * @param {string} [token=null] - トークン（軽量チェック用）
+ * @return {Object} { valid: boolean, data: any, surveyExists: boolean }
  */
-function validateZoomDataWithRetry(fetchFn, validateFn, retryMax = 3) {
+function validateZoomDataWithRetry(fetchFn, validateFn, retryMax = 5, webinarId = null, token = null) {
   for (let attempt = 1; attempt <= retryMax; attempt++) {
     try {
       const data = fetchFn();
       if (validateFn(data)) {
         Logger.log(`データ取得成功（${attempt}回目）`);
-        return { valid: true, data };
+        return { valid: true, data, surveyExists: true };
       } else {
         Logger.log(`データ形式不正（${attempt}回目）`);
       }
     } catch (e) {
       Logger.log(`データ取得エラー（${attempt}回目）: ${e}`);
     }
-    Utilities.sleep(1000); // 少し待つ
+    
+    // 最後のリトライで失敗した場合、軽量版でチェック
+    if (attempt === retryMax && webinarId && token) {
+      Logger.log('5回目のリトライに失敗。軽量版でアンケートの有無をチェックします。');
+      const hasSurvey = checkSurveyLightweight(webinarId, token);
+      if (hasSurvey) {
+        Logger.log('軽量チェック結果: アンケートは存在するが、データ取得に遅延が発生しています');
+        return { valid: false, data: null, surveyExists: true };
+      } else {
+        Logger.log('軽量チェック結果: アンケートは存在しません');
+        return { valid: false, data: null, surveyExists: false };
+      }
+    }
+    
+    Utilities.sleep(30000); // 少し待つ
   }
-  return { valid: false, data: null };
+  return { valid: false, data: null, surveyExists: false };
 }
 
 /**
@@ -748,6 +773,34 @@ const COUNTRY_CODE_MAP = {
   '34': { iso: 'ES' },
   // 全リストは GitHub などの JSON を都度読み込むと保守が楽
 };
+
+function checkSurveyLightweight(webinarId, token) {
+  // 軽量版のアンケートチェック（custom_surveyのみを取得）
+  try {
+    const response = UrlFetchApp.fetch(
+      `https://api.zoom.us/v2/webinars/${webinarId}/survey?fields=custom_survey`, 
+      {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
+    );
+
+    if (response.getResponseCode() === 200) {
+      const data = JSON.parse(response.getContentText());
+      
+      // custom_surveyの有無を確認
+      if (data && data.custom_survey && data.custom_survey.questions && data.custom_survey.questions.length > 0) {
+        Logger.log(`軽量チェック: アンケート設問数 ${data.custom_survey.questions.length}`);
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (e) {
+    Logger.log(`軽量アンケートチェックエラー: ${e.message}`);
+    return false;
+  }
+}
 
 
 
