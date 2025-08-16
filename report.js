@@ -2,18 +2,13 @@ function webinarReportsTrigger(){//10分おき（5分おき？）トリガー設
 
   try{
 
-    //メインコードが実行中か確認する
-    //実行中の場合は即終了
-    const lock = LockService.getScriptLock();
-    if (!lock.tryLock(1000)) { // 1秒以内に取れなければ優先ジョブ中
-      Logger.log("優先ジョブ中のためスキップ");
-      return;// 即終了
-    }
     const sp = PropertiesService.getScriptProperties();
+    const priorityJobStatus = sp.getProperty('PRIORITY_JOB_STATUS');
     const currentRow = sp.getProperty('i');
-
-    if (currentRow && currentRow !== '2') {
-      Logger.log(`優先ジョブ実行中（currentRow=${currentRow}）のためスキップ`);
+    
+    // 優先ジョブが実行中、または処理中の行がある場合はスキップ
+    if (priorityJobStatus === 'RUNNING' || (currentRow && currentRow !== '2')) {
+      Logger.log(`優先ジョブ実行中または処理中のためスキップ (status=${priorityJobStatus}, currentRow=${currentRow})`);
       return; // 即終了
     }
 

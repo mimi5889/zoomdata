@@ -3,10 +3,38 @@
 function priorityJob_registants() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000); // 最大30秒待ってロック取得
+  
+  const scriptProperties = PropertiesService.getScriptProperties();
+  
   try {
+    // 優先ジョブ開始
+    scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'RUNNING');
+    scriptProperties.setProperty('PRIORITY_JOB_START_TIME', new Date().toISOString());
+    
     // 優先処理本体
     getRegistantsData();
+    
+    // 正常完了
+    scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE');
+    scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
+    
+  } catch (error) {
+    // エラー発生時も確実に状態をリセット
+    Logger.log(`優先ジョブでエラーが発生: ${error.message}`);
+    
+    // 状態をリセット
+    scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE');
+    scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
+    
+    // エラー通知
+    const webhooktxt = `⚠️優先ジョブでエラーが発生しました\nエラー: ${error.message}`;
+    sendSlackNotification2(webhooktxt);
+    
+    // エラーを再スロー（必要に応じて）
+    throw error;
+    
   } finally {
+    // ロックを確実に解放
     lock.releaseLock();
   }
 }
@@ -148,40 +176,47 @@ function getRegistantsData() {//登録者データ取得
           }
         } 
 
-        //登録者数を取得
-        //登録者数に増減があったら動作する
-
-        const registantsOrgCount = sheet.getRange(i,15).getValue();
-        const eventName = '登録者数変更';
-        const registantsCount = getRegistantsCount(webinarId,token,topic);
-        sheet.getRange(i,15).setValue(registantsCount);
+        // laterDaysが21日前から当日の範囲の場合のみ登録者数増減チェックを実行
         const aryday = new Date(Utilities.formatDate(ary[3], 'Asia/Tokyo', 'yyyy/MM/dd'));
         const d1 = new Date(aryday.getFullYear(),aryday.getMonth(),aryday.getDate());
         const d2 = new Date(today.getFullYear(),today.getMonth(),today.getDate());
         const diffTime = d1.getTime() - d2.getTime();
         laterDays = diffTime / (1000 * 60 * 60 * 24);
-        //laterDays =  Math.floor((aryday.getTime() - today.getTime())/ (1000 * 60 * 60 * 24));
-        Logger.log(eventName);
-        Logger.log(topic);
+        
         Logger.log('laterDays:' + laterDays);
         schedule = new Date(today);
         schedule.setDate(today.getDate() + laterDays);
-        if(registantsOrgCount !== registantsCount && laterDays <=21 && laterDays >=0 ){
-          const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
-          const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
-          if(stockId ==='' || companyAdd === '' || companyAdd === 0){
-            sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
-            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-            sheet.getRange(i,14).setValue(url[0]);
-            sheet.getRange(i,15).setValue(url[2]);
-            nomailCount = nomailCount + 1;
-          }else{
-            slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
-            sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-            sheet.getRange(i,14).setValue(url[0]);
-            sheet.getRange(i,15).setValue(url[2]);
+        
+        // 21日前から当日の範囲の場合のみ登録者数増減チェックを実行
+        if(laterDays <= 21 && laterDays >= 0) {
+          //登録者数を取得
+          //登録者数に増減があったら動作する
+          const registantsOrgCount = sheet.getRange(i,15).getValue();
+          const eventName = '登録者数変更';
+          const registantsCount = getRegistantsCount(webinarId,token,topic);
+          
+          if(registantsOrgCount !== registantsCount) {
+            const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);//csv作成メール送信
+            const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
+            if(stockId ==='' || companyAdd === '' || companyAdd === 0){
+              sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
+              sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+              sheet.getRange(i,14).setValue(url[0]);
+              sheet.getRange(i,15).setValue(url[2]);
+              nomailCount = nomailCount + 1;
+            }else{
+              slackAry.push([laterDays,schedule,topic,eventName,url[1]]);
+              sheet.getRange(i,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+              sheet.getRange(i,14).setValue(url[0]);
+              sheet.getRange(i,15).setValue(url[2]);
+            }
           }
-
+          
+          // 範囲内の場合は常に登録者数を更新
+          sheet.getRange(i,15).setValue(registantsCount);
+        } else {
+          // 範囲外の場合は登録者数増減チェックをスキップ
+          Logger.log(`行 ${i}: laterDays=${laterDays} のため登録者数増減チェックをスキップ`);
         }
 
         // 進捗を保存
@@ -209,6 +244,8 @@ function getRegistantsData() {//登録者データ取得
             scriptProperties.setProperty('i', '2');
             scriptProperties.setProperty('slackAry', 'NaN');
             scriptProperties.setProperty('errorCount', '0');
+            scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE'); // 優先ジョブ状態をリセット
+            scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME'); // 開始時刻を削除
             return;
           } else {
             // 再実行を試行
@@ -256,6 +293,8 @@ function getRegistantsData() {//登録者データ取得
         scriptProperties.setProperty('i', '2');
         scriptProperties.setProperty('slackAry', 'NaN');
         scriptProperties.setProperty('errorCount', '0');
+        scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE'); // 優先ジョブ状態をリセット
+        scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME'); // 開始時刻を削除
         return;
       } else {
         // 再実行を試行
@@ -277,6 +316,8 @@ function getRegistantsData() {//登録者データ取得
         scriptProperties.setProperty('i', '2');
         scriptProperties.setProperty('slackAry', 'NaN');
         scriptProperties.setProperty('errorCount', '0');
+        scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE'); // 優先ジョブ状態をリセット
+        scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME'); // 開始時刻を削除
         return;
       } else {
         // 再実行を試行
@@ -295,6 +336,8 @@ function getRegistantsData() {//登録者データ取得
         scriptProperties.setProperty('i', '2');
         scriptProperties.setProperty('slackAry', 'NaN');
         scriptProperties.setProperty('errorCount', '0');
+        scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE'); // 優先ジョブ状態をリセット
+        scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME'); // 開始時刻を削除
         return;
       } else {
         // 再実行を試行

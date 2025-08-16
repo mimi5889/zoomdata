@@ -3,6 +3,9 @@ function open() {
   ui.createMenu('GAS実行')
   .addItem('事前参加者リスト手動実行', 'registantsTest')
   .addItem('事後データ取得', 'test')
+  .addSeparator()
+  .addItem('優先ジョブ状態管理テスト', 'priorityJobStatusTest')
+  .addItem('webinarReportsTriggerテスト', 'webinarReportsTriggerTest')
   .addToUi();
 }
 
@@ -440,6 +443,201 @@ function webhookTestLightweight() {
 
   } catch (error) {
     const errorMessage = `❌ Webhook軽量テストでエラーが発生しました\n\n` +
+      `エラー内容: ${error.message}\n\n` +
+      `詳細: ${error.stack || 'スタックトレースなし'}`;
+    
+    ui.alert('テストエラー', errorMessage, ui.ButtonSet.OK);
+  }
+}
+
+function priorityJobStatusTest() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const infoMessage = `🧪 優先ジョブ状態管理の軽量テスト\n\n` +
+    `・実際の処理は実行されません\n` +
+    `・スクリプトプロパティの動作確認のみ\n` +
+    `・状態の設定・取得・リセットをテスト\n\n` +
+    `テストを実行しますか？`;
+
+  const response = ui.alert('優先ジョブ状態管理テスト確認', infoMessage, ui.ButtonSet.YES_NO);
+  
+  if (response != ui.Button.YES) {
+    ui.alert('処理中止', '処理を中止しました');
+    return;
+  }
+
+  ui.alert('処理開始', '優先ジョブ状態管理テストを開始します...', ui.ButtonSet.OK);
+
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    
+    // テスト前の状態を保存
+    const originalStatus = scriptProperties.getProperty('PRIORITY_JOB_STATUS');
+    const originalStartTime = scriptProperties.getProperty('PRIORITY_JOB_START_TIME');
+    
+    Logger.log('=== 優先ジョブ状態管理テスト開始 ===');
+    
+    // 1. 初期状態の確認
+    Logger.log('1. 初期状態確認');
+    const initialStatus = scriptProperties.getProperty('PRIORITY_JOB_STATUS');
+    const initialStartTime = scriptProperties.getProperty('PRIORITY_JOB_START_TIME');
+    Logger.log(`初期状態: ${initialStatus || '未設定'}`);
+    Logger.log(`開始時刻: ${initialStartTime || '未設定'}`);
+    
+    // 2. RUNNING状態の設定テスト
+    Logger.log('2. RUNNING状態の設定テスト');
+    scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'RUNNING');
+    scriptProperties.setProperty('PRIORITY_JOB_START_TIME', new Date().toISOString());
+    
+    const runningStatus = scriptProperties.getProperty('PRIORITY_JOB_STATUS');
+    const runningStartTime = scriptProperties.getProperty('PRIORITY_JOB_START_TIME');
+    Logger.log(`設定後状態: ${runningStatus}`);
+    Logger.log(`設定後開始時刻: ${runningStartTime}`);
+    
+    // 3. 状態の取得テスト
+    Logger.log('3. 状態の取得テスト');
+    const currentStatus = scriptProperties.getProperty('PRIORITY_JOB_STATUS');
+    const currentStartTime = scriptProperties.getProperty('PRIORITY_JOB_START_TIME');
+    
+    if (currentStatus === 'RUNNING' && currentStartTime) {
+      Logger.log('✅ RUNNING状態の設定・取得: 成功');
+    } else {
+      throw new Error('RUNNING状態の設定・取得に失敗');
+    }
+    
+    // 4. IDLE状態へのリセットテスト
+    Logger.log('4. IDLE状態へのリセットテスト');
+    scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE');
+    scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
+    
+    const resetStatus = scriptProperties.getProperty('PRIORITY_JOB_STATUS');
+    const resetStartTime = scriptProperties.getProperty('PRIORITY_JOB_START_TIME');
+    Logger.log(`リセット後状態: ${resetStatus}`);
+    Logger.log(`リセット後開始時刻: ${resetStartTime}`);
+    
+    if (resetStatus === 'IDLE' && !resetStartTime) {
+      Logger.log('✅ IDLE状態へのリセット: 成功');
+    } else {
+      throw new Error('IDLE状態へのリセットに失敗');
+    }
+    
+    // 5. 元の状態に復元
+    Logger.log('5. 元の状態への復元');
+    if (originalStatus) {
+      scriptProperties.setProperty('PRIORITY_JOB_STATUS', originalStatus);
+    } else {
+      scriptProperties.deleteProperty('PRIORITY_JOB_STATUS');
+    }
+    
+    if (originalStartTime) {
+      scriptProperties.setProperty('PRIORITY_JOB_START_TIME', originalStartTime);
+    } else {
+      scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
+    }
+    
+    Logger.log('=== 優先ジョブ状態管理テスト完了 ===');
+    
+    // 結果表示
+    const resultMessage = `✅ 優先ジョブ状態管理テスト完了\n\n` +
+      `・状態設定: 成功\n` +
+      `・状態取得: 成功\n` +
+      `・状態リセット: 成功\n` +
+      `・元の状態復元: 完了\n\n` +
+      `詳細はログを確認してください\n` +
+      `実際の処理は実行されていません`;
+
+    ui.alert('テスト完了', resultMessage, ui.ButtonSet.OK);
+
+  } catch (error) {
+    Logger.log(`❌ 優先ジョブ状態管理テストでエラー: ${error.message}`);
+    
+    const errorMessage = `❌ 優先ジョブ状態管理テストでエラーが発生しました\n\n` +
+      `エラー内容: ${error.message}\n\n` +
+      `詳細: ${error.stack || 'スタックトレースなし'}`;
+    
+    ui.alert('テストエラー', errorMessage, ui.ButtonSet.OK);
+  }
+}
+
+function webinarReportsTriggerTest() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const infoMessage = `🧪 webinarReportsTriggerの軽量テスト\n\n` +
+    `・実際の処理は実行されません\n` +
+    `・優先ジョブ状態チェックの動作確認のみ\n` +
+    `・トリガー制御ロジックをテスト\n\n` +
+    `テストを実行しますか？`;
+
+  const response = ui.alert('webinarReportsTriggerテスト確認', infoMessage, ui.ButtonSet.YES_NO);
+  
+  if (response != ui.Button.YES) {
+    ui.alert('処理中止', '処理を中止しました');
+    return;
+  }
+
+  ui.alert('処理開始', 'webinarReportsTriggerテストを開始します...', ui.ButtonSet.OK);
+
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    
+    Logger.log('=== webinarReportsTriggerテスト開始 ===');
+    
+    // 1. 現在の状態を確認
+    Logger.log('1. 現在の状態確認');
+    const currentStatus = scriptProperties.getProperty('PRIORITY_JOB_STATUS');
+    const currentRow = scriptProperties.getProperty('i');
+    Logger.log(`優先ジョブ状態: ${currentStatus || '未設定'}`);
+    Logger.log(`現在の行: ${currentRow || '未設定'}`);
+    
+    // 2. 制御ロジックのテスト
+    Logger.log('2. 制御ロジックのテスト');
+    
+    let shouldSkip = false;
+    let skipReason = '';
+    
+    if (currentStatus === 'RUNNING') {
+      shouldSkip = true;
+      skipReason = '優先ジョブ実行中';
+    } else if (currentRow && currentRow !== '2') {
+      shouldSkip = true;
+      skipReason = '処理中の行がある';
+    }
+    
+    if (shouldSkip) {
+      Logger.log(`✅ 制御ロジック: スキップ判定 (理由: ${skipReason})`);
+    } else {
+      Logger.log(`✅ 制御ロジック: 実行可能`);
+    }
+    
+    // 3. 時間制御のテスト
+    Logger.log('3. 時間制御のテスト');
+    const now = new Date();
+    const hour = now.getHours();
+    Logger.log(`現在時刻: ${hour}時`);
+    
+    if (hour >= 23 || hour < 7) {
+      Logger.log(`✅ 時間制御: 実行時間外 (23:00-7:00) - スキップ`);
+    } else {
+      Logger.log(`✅ 時間制御: 実行時間内 - 実行可能`);
+    }
+    
+    Logger.log('=== webinarReportsTriggerテスト完了 ===');
+    
+    // 結果表示
+    const resultMessage = `✅ webinarReportsTriggerテスト完了\n\n` +
+      `・優先ジョブ状態: ${currentStatus || '未設定'}\n` +
+      `・現在の行: ${currentRow || '未設定'}\n` +
+      `・制御ロジック: ${shouldSkip ? `スキップ (${skipReason})` : '実行可能'}\n` +
+      `・時間制御: ${(hour >= 23 || hour < 7) ? '実行時間外' : '実行時間内'}\n\n` +
+      `詳細はログを確認してください\n` +
+      `実際の処理は実行されていません`;
+
+    ui.alert('テスト完了', resultMessage, ui.ButtonSet.OK);
+
+  } catch (error) {
+    Logger.log(`❌ webinarReportsTriggerテストでエラー: ${error.message}`);
+    
+    const errorMessage = `❌ webinarReportsTriggerテストでエラーが発生しました\n\n` +
       `エラー内容: ${error.message}\n\n` +
       `詳細: ${error.stack || 'スタックトレースなし'}`;
     
