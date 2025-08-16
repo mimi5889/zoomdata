@@ -3,5 +3,7 @@
   "dependencies": {
   },
   "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8"
+  "runtimeVersion": "V8",
+  "version": "2.0.0",
+  "description": "Zoomウェビナーデータ管理システム - 優先ジョブ状態管理・エラーハンドリング強化版"
 }
