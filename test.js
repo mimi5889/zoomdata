@@ -70,35 +70,37 @@ function registantsTest(){//事前データテスト用
   }
 
   //登録者数を取得
-  //登録者数に増減があったら動作する
+  //登録者数の変更がなくても実行する
   const registantsOrgCount = sheet.getRange(row,15).getValue();
-  Logger.log('登録者数' + registantsOrgCount);
+  Logger.log('元の登録者数: ' + registantsOrgCount);
+  
   const url = crieteFolderAndCsvFile(folderId,webinarId,topic,token,filePrefix,eventName,dateStr,scheduleDate,stockId, companyName, companyAdd);
+  const newRegistantsCount = url[2]; // 新しい登録者数
+  Logger.log('新しい登録者数: ' + newRegistantsCount);
+  
   const aryday = new Date(Utilities.formatDate(rowValues[3], 'Asia/Tokyo', 'yyyy/MM/dd'));
   const d1 = new Date(aryday.getFullYear(),aryday.getMonth(),aryday.getDate());
   const d2 = new Date(today.getFullYear(),today.getMonth(),today.getDate());
   const diffTime = d1.getTime() - d2.getTime();
   const laterDays = diffTime / (1000 * 60 * 60 * 24);
-  //const laterDays =  Math.floor((aryday.getTime() - today.getTime())/ (1000 * 60 * 60 * 24));//****動くか確認
   Logger.log(laterDays);
-  if(registantsOrgCount !== url[2]){
-    const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
-    const webhooktxt = url_txt + '\n' + topic + '\n' + url[1] +'\n';
-    Logger.log(webhooktxt);
-    if(stockId ==='' || companyAdd === '' || companyAdd === 0){
-      sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
-      sheet.getRange(row,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-      sheet.getRange(row,14).setValue(url[0]);
-      sheet.getRange(row,15).setValue(url[2]);
-    }else{
-      sendSlackNotification2(webhooktxt);//************************事前登録者データslack通知************************
-      sheet.getRange(row,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
-      sheet.getRange(row,14).setValue(url[0]);
-      sheet.getRange(row,15).setValue(url[2]);
-    }
-
+  
+  // 登録者数の変更がなくても実行する（条件分岐を削除）
+  const url_txt = '[' + eventName + ']\n'+laterDays + '日前\n'+ formatted_today ;
+  const webhooktxt = url_txt + '\n' + topic + '\n' + url[1] +'\n';
+  Logger.log(webhooktxt);
+  
+  if(stockId ==='' || companyAdd === '' || companyAdd === 0){
+    sendSlackNotification3(topic,eventName,url[0]) //************************事前登録者データメールアドレス無しslack通知************************
+    sheet.getRange(row,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+    sheet.getRange(row,14).setValue(url[0]);
+    sheet.getRange(row,15).setValue(newRegistantsCount); // 新しい登録者数を設定
+  }else{
+    sendSlackNotification2(webhooktxt);//************************事前登録者データslack通知************************
+    sheet.getRange(row,colIndex+1).setFormula(`=HYPERLINK("${url[1]}", "${url_txt}")`);
+    sheet.getRange(row,14).setValue(url[0]);
+    sheet.getRange(row,15).setValue(newRegistantsCount); // 新しい登録者数を設定
   }
-
 }
 
 
