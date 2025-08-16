@@ -26,9 +26,8 @@ function priorityJob_registants() {
     scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE');
     scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
     
-    // エラー通知
-    const webhooktxt = `⚠️優先ジョブでエラーが発生しました\nエラー: ${error.message}`;
-    sendSlackNotification2(webhooktxt);
+    // エラーはログに記録のみ（Slack通知なし）
+    Logger.log(`優先ジョブでエラーが発生: ${error.message}`);
     
     // エラーを再スロー（必要に応じて）
     throw error;
@@ -239,7 +238,13 @@ function getRegistantsData() {//登録者データ取得
           
           if (errorCount >= 3) {
             // 3回以上エラーが発生した場合は中止
-            webhooktxt = `⚠️Googleサーバーエラーが3回発生しました\n処理を中止します\n現在の行: ${i}\nエラー: ${rowError.message}`;
+            webhooktxt = `⚠️Googleサーバーエラーが3回発生しました\n` +
+              `処理を中止します\n` +
+              `発生時刻: ${new Date().toISOString()}\n` +
+              `現在の行: ${i}\n` +
+              `エラー種別: Googleサーバーエラー（3回目）\n` +
+              `エラー内容: ${rowError.message}\n` +
+              `処理状態: 優先ジョブ状態をリセットして終了`;
             sendSlackNotification2(webhooktxt); //************************個別行エラー処理slack通知************************
             scriptProperties.setProperty('i', '2');
             scriptProperties.setProperty('slackAry', 'NaN');
@@ -249,7 +254,14 @@ function getRegistantsData() {//登録者データ取得
             return;
           } else {
             // 再実行を試行
-            webhooktxt = `⚠️Googleサーバーエラーが発生しました\n1分後に再実行します\n現在の行: ${i}\nエラー: ${rowError.message}\n再実行回数: ${errorCount + 1}/3`;
+            webhooktxt = `⚠️Googleサーバーエラーが発生しました\n` +
+              `1分後に再実行します\n` +
+              `発生時刻: ${new Date().toISOString()}\n` +
+              `現在の行: ${i}\n` +
+              `エラー種別: Googleサーバーエラー\n` +
+              `エラー内容: ${rowError.message}\n` +
+              `再実行回数: ${errorCount + 1}/3\n` +
+              `処理状態: 再実行待機中`;
             sendSlackNotification2(webhooktxt); //************************個別行エラー処理slack通知************************
             scriptProperties.setProperty('errorCount', String(errorCount + 1));
             setRetryTrigger();
