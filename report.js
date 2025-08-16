@@ -201,7 +201,7 @@ function exportWebinarCsvs(webinarId, accountIndex, stockId, companyName, endTim
     const result = validateZoomDataWithRetry(
       () => fetchZoomData(`https://api.zoom.us/v2/webinars/${webinarId}/survey`, token),
       (d) => d && d.custom_survey && Array.isArray(d.custom_survey.questions) && d.custom_survey.questions.length > 0,
-      5, // 最大5回リトライ
+      3, // 最大3回リトライ
       webinarId, // webinarIdを渡す
       token // tokenを渡す
     );
@@ -693,12 +693,12 @@ function sanitizeCell(cell) {//改行を削除
  *
  * @param {function(): Object} fetchFn - データ取得関数（例: () => fetchZoomData(url, token)）
  * @param {function(Object): boolean} validateFn - バリデーション関数（true なら有効）
- * @param {number} [retryMax=5] - 最大リトライ回数
+ * @param {number} [retryMax=3] - 最大リトライ回数
  * @param {string} [webinarId=null] - ウェビナーID（軽量チェック用）
  * @param {string} [token=null] - トークン（軽量チェック用）
  * @return {Object} { valid: boolean, data: any, surveyExists: boolean }
  */
-function validateZoomDataWithRetry(fetchFn, validateFn, retryMax = 5, webinarId = null, token = null) {
+function validateZoomDataWithRetry(fetchFn, validateFn, retryMax = 3, webinarId = null, token = null) {
   for (let attempt = 1; attempt <= retryMax; attempt++) {
     try {
       const data = fetchFn();
@@ -714,7 +714,7 @@ function validateZoomDataWithRetry(fetchFn, validateFn, retryMax = 5, webinarId 
     
     // 最後のリトライで失敗した場合、軽量版でチェック
     if (attempt === retryMax && webinarId && token) {
-      Logger.log('5回目のリトライに失敗。軽量版でアンケートの有無をチェックします。');
+      Logger.log('3回目のリトライに失敗。軽量版でアンケートの有無をチェックします。');
       const hasSurvey = checkSurveyLightweight(webinarId, token);
       if (hasSurvey) {
         Logger.log('軽量チェック結果: アンケートは存在するが、データ取得に遅延が発生しています');
