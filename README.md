@@ -127,6 +127,78 @@ if (rowError.message.includes('Service temporarily unavailable') ||
 - **本番環境でも安心**: データに影響しない
 - **設定確認**: スクリプトプロパティ、API接続、データ取得の動作確認
 
+### 2025年8月15日 - 優先ジョブ状態管理と登録者数増減チェックの最適化
+- **優先ジョブ状態管理**: スクリプトプロパティによる確実な実行制御
+- **登録者数増減チェック最適化**: 21日前から当日の範囲でのみ実行
+- **エラー時状態リセット**: 優先ジョブ状態の確実なリセット
+- **軽量テスト関数追加**: 優先ジョブ状態管理の動作確認用テスト
+
+#### 新機能の詳細
+
+##### 優先ジョブ状態管理
+- **状態管理**: `PRIORITY_JOB_STATUS` (RUNNING/IDLE) で実行状態を管理
+- **開始時刻記録**: `PRIORITY_JOB_START_TIME` で処理開始時刻を記録
+- **確実な制御**: スクリプトプロパティによる確実な実行制御
+- **エラー時リセット**: エラー発生時も確実に状態をリセット
+
+##### 登録者数増減チェックの最適化
+- **実行範囲制限**: 21日前から当日の範囲でのみ実行
+- **効率性向上**: 範囲外の行では`getRegistantsCount()`を呼び出さない
+- **処理スキップ**: 範囲外の場合は完全にスキップ
+- **ログ出力**: スキップ理由を明確に記録
+
+##### エラー処理の強化
+- **状態リセット**: すべてのエラー処理で優先ジョブ状態をリセット
+- **Slack通知**: エラー内容と状態リセットの確認
+- **一貫性確保**: 常に`PRIORITY_JOB_STATUS`を`IDLE`に戻す
+
+#### 変更されたファイル
+- `registants.js` - 優先ジョブ状態管理、登録者数増減チェック最適化、エラー時状態リセット
+- `report.js` - ロック処理を削除、スクリプトプロパティによる制御に変更
+- `test.js` - 優先ジョブ状態管理テスト関数2種類、メニュー更新
+
+#### 実装された機能
+```javascript
+// 優先ジョブ開始時
+scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'RUNNING');
+scriptProperties.setProperty('PRIORITY_JOB_START_TIME', new Date().toISOString());
+
+// 正常完了時
+scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE');
+scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
+
+// エラー時も確実に状態をリセット
+scriptProperties.setProperty('PRIORITY_JOB_STATUS', 'IDLE');
+scriptProperties.deleteProperty('PRIORITY_JOB_START_TIME');
+
+// 登録者数増減チェックの範囲制限
+if(laterDays <= 21 && laterDays >= 0) {
+  // 21日前から当日の範囲でのみ実行
+  const registantsCount = getRegistantsCount(webinarId,token,topic);
+  // ... 処理 ...
+} else {
+  // 範囲外の場合はスキップ
+  Logger.log(`行 ${i}: laterDays=${laterDays} のため登録者数増減チェックをスキップ`);
+}
+
+// webinarReportsTriggerでの制御
+if (priorityJobStatus === 'RUNNING' || (currentRow && currentRow !== '2')) {
+  Logger.log(`優先ジョブ実行中または処理中のためスキップ (status=${priorityJobStatus}, currentRow=${currentRow})`);
+  return; // 即終了
+}
+```
+
+#### 軽量テスト関数
+- **`priorityJobStatusTest()`**: 優先ジョブ状態管理の基本動作確認
+- **`webinarReportsTriggerTest()`**: トリガー制御ロジックの動作確認
+- **安全性**: 実際の処理は実行せず、状態管理のみテスト
+
+#### 実装の利点
+- **確実な制御**: ロック処理よりも確実な実行制御
+- **効率性向上**: 不要な処理のスキップ
+- **エラー耐性**: エラー時も確実に状態をリセット
+- **保守性**: 状態が明確で管理しやすい
+
 ## セットアップ手順
 1. スクリプトプロパティに必要な値を設定
 2. 軽量テストで基本動作を確認
@@ -141,3 +213,5 @@ if (rowError.message.includes('Service temporarily unavailable') ||
 - **SHEET_ID不要**: メインスプレッドシートは自動的にアクティブシートとして認識されます
 - **軽量テスト推奨**: 本番環境での動作確認前に軽量テストを実行してください
 - **エラー対応**: Googleサーバーエラー時は自動的に再実行されます（最大3回）
+- **優先ジョブ制御**: 優先ジョブ実行中は他の処理が自動的にスキップされます
+- **登録者数チェック**: 21日前から当日の範囲でのみ実行されます
