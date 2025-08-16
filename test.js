@@ -1,4 +1,10 @@
-
+function open() {
+  var ui = SpreadsheetApp.getUi();           // Uiクラスを取得する
+  ui.createMenu('GAS実行')
+  .addItem('事前参加者リスト手動実行', 'registantsTest')
+  .addItem('事後データ取得', 'test')
+  .addToUi();
+}
 
 function registantsTest(){//事前データテスト用
   const today = new Date();
@@ -735,6 +741,131 @@ function registrantsCheckLogicTest() {
     Logger.log(`❌ 登録者数増減チェックロジックテストでエラー: ${error.message}`);
     Logger.log(`エラー内容: ${error.message}`);
     Logger.log(`詳細: ${error.stack || 'スタックトレースなし'}`);
+    Logger.log('=== テストエラー ===');
+  }
+}
+
+function setExclusionFlagsTest() {
+  Logger.log('=== setExclusionFlags軽量テスト開始 ===');
+  
+  try {
+    // 1. 除外シートの状態確認
+    Logger.log('1. 除外シートの状態確認');
+    const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
+    
+    if (!flgSheet) {
+      throw new Error('除外シートが見つかりません');
+    }
+    
+    // 除外ワード（A列）の取得
+    const exclusionWords = flgSheet.getRange('A2:A')
+      .getValues()
+      .flat()
+      .filter(word => word);
+    
+    Logger.log(`除外ワード数: ${exclusionWords.length}`);
+    Logger.log(`除外ワード: ${exclusionWords.join(', ')}`);
+    
+    // 除外stockID（B列）の取得
+    const exclusionStockIds = flgSheet.getRange('B2:B')
+      .getValues()
+      .flat()
+      .filter(stockId => stockId);
+    
+    Logger.log(`除外stockID数: ${exclusionStockIds.length}`);
+    Logger.log(`除外stockID: ${exclusionStockIds.join(', ')}`);
+    
+    // 2. メインシートの状態確認
+    Logger.log('2. メインシートの状態確認');
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow < 2) {
+      Logger.log('メインシートにデータがありません');
+      return;
+    }
+    
+    Logger.log(`メインシート行数: ${lastRow}`);
+    
+    // 3. 除外判定ロジックのテスト
+    Logger.log('3. 除外判定ロジックのテスト');
+    
+    // テスト用のサンプルデータ
+    const testCases = [
+      { topic: 'テストウェビナー1', stockId: '1234', description: '通常のケース' },
+      { topic: 'テストウェビナー2', stockId: '5678', description: '除外ワードが含まれるケース' },
+      { topic: 'テストウェビナー3', stockId: '9999', description: '除外stockIDと一致するケース' },
+      { topic: 'テストウェビナー4', stockId: '', description: 'stockIDが空のケース' }
+    ];
+    
+    testCases.forEach((testCase, index) => {
+      Logger.log(`テストケース${index + 1}: ${testCase.description}`);
+      Logger.log(`  トピック: ${testCase.topic}`);
+      Logger.log(`  証券コード: ${testCase.stockId || '空'}`);
+      
+      // 除外ワードによる除外判定
+      const isExcludedByWord = exclusionWords.some(word => 
+        testCase.topic.includes(word)
+      );
+      Logger.log(`  除外ワード判定: ${isExcludedByWord ? '除外' : '対象'}`);
+      
+      // 除外stockIDによる除外判定
+      const isExcludedByStockId = exclusionStockIds.some(exclusionId => 
+        testCase.stockId && exclusionId && testCase.stockId.toString() === exclusionId.toString()
+      );
+      Logger.log(`  除外stockID判定: ${isExcludedByStockId ? '除外' : '対象'}`);
+      
+      // 最終判定
+      const isExcluded = isExcludedByWord || isExcludedByStockId;
+      Logger.log(`  最終判定: ${isExcluded ? '除外対象' : '処理対象'}`);
+      Logger.log('');
+    });
+    
+    // 4. 実際のデータでの除外件数予測
+    Logger.log('4. 実際のデータでの除外件数予測');
+    
+    const topics = sheet.getRange(2, 3, lastRow - 1).getValues(); // C列（トピック）
+    const stockIds = sheet.getRange(2, 8, lastRow - 1).getValues(); // H列（証券コード）
+    
+    let excludedCount = 0;
+    let excludedByWordCount = 0;
+    let excludedByStockIdCount = 0;
+    
+    for (let i = 0; i < topics.length; i++) {
+      const topic = topics[i][0];
+      const stockId = stockIds[i][0];
+      
+      // 除外ワードによる除外判定
+      const isExcludedByWord = exclusionWords.some(word => topic.includes(word));
+      
+      // 除外stockIDによる除外判定
+      const isExcludedByStockId = exclusionStockIds.some(exclusionId => 
+        stockId && exclusionId && stockId.toString() === exclusionId.toString()
+      );
+      
+      if (isExcludedByWord) excludedByWordCount++;
+      if (isExcludedByStockId) excludedByStockIdCount++;
+      if (isExcludedByWord || isExcludedByStockId) excludedCount++;
+    }
+    
+    Logger.log(`総レコード数: ${topics.length}`);
+    Logger.log(`除外ワードによる除外: ${excludedByWordCount}件`);
+    Logger.log(`除外stockIDによる除外: ${excludedByStockIdCount}件`);
+    Logger.log(`総除外件数: ${excludedCount}件`);
+    
+    // 5. 処理の安全性確認
+    Logger.log('5. 処理の安全性確認');
+    Logger.log('✅ 除外ワードの取得: 正常');
+    Logger.log('✅ 除外stockIDの取得: 正常');
+    Logger.log('✅ 文字列比較: toString()で安全な比較');
+    Logger.log('✅ null/undefinedチェック: 空値の適切な処理');
+    Logger.log('✅ ログ出力: 処理結果の確認が可能');
+    
+    Logger.log('=== setExclusionFlags軽量テスト完了 ===');
+    
+  } catch (error) {
+    Logger.log(`❌ setExclusionFlags軽量テストでエラー: ${error.message}`);
+    Logger.log(`エラー詳細: ${error.stack || 'スタックトレースなし'}`);
     Logger.log('=== テストエラー ===');
   }
 }

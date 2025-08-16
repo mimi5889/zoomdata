@@ -265,6 +265,82 @@ webhooktxt = `⚠️Googleサーバーエラーが3回発生しました\n` +
 - **テスト環境**: 安全な軽量テストで動作確認可能
 - **保守性向上**: エラー処理が明確で管理しやすい
 
+### 2025年8月16日 - setExclusionFlags関数の強化
+- **除外判定ロジックの拡張**: 除外ワード（A列）と除外stockID（B列）の両方を対象
+- **証券コードによる除外**: メインシートH列（証券コード）と除外シートB列の照合
+- **軽量テスト関数の追加**: setExclusionFlags関数の動作確認用テスト
+
+#### 新機能の詳細
+
+##### 除外判定ロジックの拡張
+- **従来の機能**: 除外シートA列の除外ワードによるトピック除外
+- **新機能**: 除外シートB列の除外stockIDによる証券コード除外
+- **統合判定**: どちらかが除外対象の場合は除外フラグを設定
+- **OR条件**: 除外ワードまたは除外stockIDのいずれかが一致
+
+##### 証券コードによる除外
+- **対象列**: メインシートH列（証券コード）
+- **除外シート**: 除外シートB列（除外stockID）
+- **照合方法**: 文字列として確実な比較（toString()使用）
+- **安全性**: null/undefined値の適切な処理
+
+##### 軽量テスト関数の追加
+- **`setExclusionFlagsTest()`**: 除外判定ロジックの動作確認
+- **除外シート状態確認**: A列・B列のデータ取得確認
+- **ロジックテスト**: サンプルデータでの判定確認
+- **実際データ予測**: 除外件数の事前計算
+
+#### 変更されたファイル
+- `webinarList.js` - setExclusionFlags関数の強化、除外stockID対応
+- `test.js` - setExclusionFlags軽量テスト関数追加
+
+#### 実装された機能
+```javascript
+function setExclusionFlags() {
+  // 除外ワードの取得（除外シートA列）
+  const exclusionWords = flgSheet.getRange('A2:A')
+    .getValues()
+    .flat()
+    .filter(word => word);
+  
+  // 除外stockIDの取得（除外シートB列）
+  const exclusionStockIds = flgSheet.getRange('B2:B')
+    .getValues()
+    .flat()
+    .filter(stockId => stockId);
+
+  // 除外判定ロジック
+  for (let i = 0; i < topics.length; i++) {
+    const topic = topics[i][0];
+    const stockId = stockIds[i][0];
+    
+    // 除外ワードによる除外判定
+    const isExcludedByWord = exclusionWords.some(word => topic.includes(word));
+    
+    // 除外stockIDによる除外判定
+    const isExcludedByStockId = exclusionStockIds.some(exclusionId => 
+      stockId && exclusionId && stockId.toString() === exclusionId.toString()
+    );
+    
+    // どちらかが除外対象の場合はフラグを立てる
+    const isExcluded = isExcludedByWord || isExcludedByStockId;
+    flags.push([isExcluded ? 1 : '']);
+  }
+}
+```
+
+#### 軽量テストの特徴
+- **安全性**: 実際の除外フラグ設定は行わない
+- **詳細確認**: 除外ワード・除外stockIDの両方をテスト
+- **ログ出力**: 各判定ステップの結果を詳細に記録
+- **件数予測**: 実際のデータでの除外件数を事前計算
+
+#### 実装の利点
+- **柔軟性向上**: 除外ワードと除外stockIDの両方で除外可能
+- **精度向上**: より細かい除外条件の設定
+- **保守性向上**: 除外条件の管理が容易
+- **安全性向上**: 軽量テストで動作確認が可能
+
 ## セットアップ手順
 1. スクリプトプロパティに必要な値を設定
 2. 軽量テストで基本動作を確認
@@ -283,3 +359,5 @@ webhooktxt = `⚠️Googleサーバーエラーが3回発生しました\n` +
 - **登録者数チェック**: 21日前から当日の範囲でのみ実行されます
 - **エラー通知**: 詳細なエラー情報で問題の特定が容易になります
 - **優先ジョブ通知**: 優先ジョブ実行時はSlack通知されません（ログでの記録のみ）
+- **除外判定**: 除外ワードと除外stockIDの両方で除外フラグを設定します
+- **除外シート**: A列（除外ワード）とB列（除外stockID）の両方を管理してください

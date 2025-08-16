@@ -100,22 +100,44 @@ function formatDate(date) {//日付形式の変換
 function setExclusionFlags() {//処理を除外するレコードにフラグを立てる
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   const flgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('除外');
+  
   // 除外ワードの取得（除外シートA列）
   const exclusionWords = flgSheet.getRange('A2:A')
     .getValues()
     .flat()
     .filter(word => word); // 空でないものだけ
+  
+  // 除外stockIDの取得（除外シートB列）
+  const exclusionStockIds = flgSheet.getRange('B2:B')
+    .getValues()
+    .flat()
+    .filter(stockId => stockId); // 空でないものだけ
 
   const lastRow = sheet.getLastRow();
   const topics = sheet.getRange(2, 3, lastRow).getValues(); // C列（トピック）
+  const stockIds = sheet.getRange(2, 8, lastRow).getValues(); // H列（証券コード）
   const flags = [];
 
   for (let i = 0; i < topics.length; i++) {
     const topic = topics[i][0];
-    const isExcluded = exclusionWords.some(word => topic.includes(word));
+    const stockId = stockIds[i][0];
+    
+    // 除外ワードによる除外判定
+    const isExcludedByWord = exclusionWords.some(word => topic.includes(word));
+    
+    // 除外stockIDによる除外判定
+    const isExcludedByStockId = exclusionStockIds.some(exclusionId => 
+      stockId && exclusionId && stockId.toString() === exclusionId.toString()
+    );
+    
+    // どちらかが除外対象の場合はフラグを立てる
+    const isExcluded = isExcludedByWord || isExcludedByStockId;
     flags.push([isExcluded ? 1 : '']);
   }
+  
   sheet.getRange(2, 7, flags.length).setValues(flags); // G列にフラグ出力
+  
+  Logger.log(`除外フラグ設定完了: ${flags.filter(f => f[0] === 1).length}件のレコードを除外対象に設定`);
 }
 
 function runAllZoomChecks() {//グレーアウト処理
